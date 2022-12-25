@@ -1,0 +1,62 @@
+import os
+import subprocess
+import time
+
+from multiple_ci.utils import caches
+from multiple_ci.config import config
+
+class TimeoutChecker:
+    def __init__(self, cache):
+        self.cache = cache
+
+    def check(self, job_config):
+        now = time.time_ns()
+        key = f'timeout.{job_config["name"]}'
+        if self.cache.exists(key) == 0:
+            self.cache.set(key, now)
+            return True
+
+        prev = int(self.cache.get(key))
+        self.cache.set(key, now)
+        return now - prev > config.CHECKER_TIMEOUT_NS
+
+
+class CommitCountChecker:
+    def __init__(self, cache):
+        self.cache = cache
+
+    def check(self, job_config):
+        key = f'commit-count.{job_config["name"]}'
+        path = os.path.join("/srv/git", job_config["name"])
+
+        if self.cache.exists(key) == 0:
+            cmd = f'git clone {job_config["url"][0]} {path}'
+            subprocess.run(cmd.split(" "))
+            cmd = f'git -C {path} rev-list --all --count'
+            count = int(subprocess.check_output(cmd.split(" ")))
+            self.cache.set(key, count)
+            return True
+
+        prev = int(self.cache.get(key))
+
+        cmd = f'git -C {path} pull'
+        subprocess.run(cmd.split(" "))
+        cmd = f'git -C {path} rev-list --all --count'
+        now = int(subprocess.check_output(cmd.split(" ")))
+
+        self.cache.set(key, now)
+        return now - prev > config.CHECKER_COMMIT_COUNT_THRESHOLD
+
+
+class CheckerSelector:
+    def __init__(self):
+        self.cache = caches.get_client()
+        self.checkers = {
+            "timeout": TimeoutChecker(self.cache),
+            "commit-count": CommitCountChecker(self.cache),
+        }
+
+    def get_checker(self, name):
+        if name not in self.checkers:
+            return self.checkers['commit-count']
+        return self.checkers[name]
