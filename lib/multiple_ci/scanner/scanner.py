@@ -1,4 +1,7 @@
+import logging
 import os
+import time
+
 import yaml
 import subprocess
 import threading
@@ -29,21 +32,23 @@ class ScanThread(threading.Thread):
 
     def run(self):
         while True:
-            job_config = self.repo_queue.get(block=True)[1]
-            checker = self.checkers.get_checker(job_config['name'])
-            if not checker.check(job_config):
-                continue
-            self.mq.publish_dict(job_config)
-            self.repo_queue.put((0, job_config))
+            job_config = self.repo_queue.get(block=True)
+            checker = self.checkers.get_checker(job_config['checker'])
+            if checker.check(job_config):
+                logging.debug(f'send job config: config={job_config}')
+                self.mq.publish_dict(job_config)
+            job_config['time'] = time.time_ns()
+            self.repo_queue.put(job_config)
+            time.sleep(config.SCANNER_INTERVAL_SEC)
 
 
 class Scanner:
-    def __init__(self, mq_host=config.MQ_HOST, scanner_count=config.SCANNER_COUNT):
-        self.repo_queue = queue.PriorityQueue(config.REPO_QUEUE_CAPACITY)
+    def __init__(self, mq_host, scanner_count=config.SCANNER_COUNT):
+        self.repo_queue = queue.PriorityQueue(config.SCANNER_REPO_QUEUE_CAPACITY)
         self.listener = RepoListenThread(self.repo_queue)
         self.scanners = [ScanThread(self.repo_queue, mq_host) for __ in range(scanner_count)]
 
-    def init(self, upstream_url=config.UPSTREAM_URL, upstream_repo=config.UPSTREAM_REPO):
+    def init(self, upstream_url, upstream_repo):
         upstream_path = os.path.join("/srv/git", upstream_repo)
         cmd = f"git clone {upstream_url} {upstream_path}"
         subprocess.run(cmd.split(" "))
@@ -61,13 +66,15 @@ class Scanner:
                 # TODO: document on config file
                 with open(defaults_path) as defaults_file:
                     job_config = {
+                        'time': time.time_ns(),
                         'url': raw_config['url'],
                         'dir': directory,
                         'name': name,
-                        'checker': raw_config.get('checker', 'timeout'),
+                        'checker': raw_config.get('checker', 'commit-count'),
                         'defaults': yaml.load(defaults_file, Loader=yaml.FullLoader)
                     }
-                    self.repo_queue.put((0, JobConfig(job_config)))
+                    logging.debug(f'put job config into queue: config={job_config}')
+                    self.repo_queue.put(JobConfig(job_config))
 
     def scan(self):
         self.listener.start()
@@ -77,7 +84,7 @@ class Scanner:
     @classmethod
     def _repo_iter(cls, upstream_path):
         # for ch in map(chr, range(ord('a'), ord('z') + 1)):
-        for ch in map(chr, range(ord('a'), ord('b') + 1)):
+        for ch in map(chr, range(ord('a'), ord('c') + 1)):
             path = os.path.join(upstream_path, ch)
             for root, dirs, files in os.walk(path):
                 for d in dirs:

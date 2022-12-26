@@ -1,9 +1,15 @@
+import logging
 import os
 import subprocess
 import time
 
 from multiple_ci.utils import caches
 from multiple_ci.config import config
+
+class KeepOutChecker:
+    def check(self):
+        return False
+    
 
 class TimeoutChecker:
     def __init__(self, cache):
@@ -50,13 +56,15 @@ class CommitCountChecker:
 
 class CheckerSelector:
     def __init__(self):
-        self.cache = caches.get_client()
+        self.cache = caches.CacheManager.get_client()
         self.checkers = {
             "timeout": TimeoutChecker(self.cache),
             "commit-count": CommitCountChecker(self.cache),
+            "keep-out": KeepOutChecker(),
         }
 
     def get_checker(self, name):
         if name not in self.checkers:
-            return self.checkers['commit-count']
+            logging.warning(f'no such checker: name={name}')
+            return self.checkers['keep-out']
         return self.checkers[name]
