@@ -22,9 +22,11 @@ class MQPublisher:
 
 
 class MQConsumer:
-    def __init__(self, host, queue):
+    def __init__(self, host, queue, username='root', password='123456'):
         self.queue = queue
-        self.connection = BlockingConnection(ConnectionParameters(host=host))
+        credentials = pika.PlainCredentials(username=username, password=password)
+        parameters = pika.ConnectionParameters(host=host, credentials=credentials)
+        self.connection = pika.BlockingConnection(parameters=parameters)
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue=queue)
 

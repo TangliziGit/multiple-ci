@@ -1,3 +1,5 @@
+import logging
+
 import redis
 
 
@@ -8,7 +10,7 @@ class CacheManager:
     @classmethod
     def init(cls, host, port, db):
         if cls.inited:
-            # TODO: log warn
+            logging.warning(f'cache manager init twice')
             return
         cls.inited = True
         cls.pool = redis.ConnectionPool(host=host, port=port, db=db)
@@ -17,6 +19,6 @@ class CacheManager:
     @classmethod
     def get_client(cls):
         if not cls.inited:
-            # TODO: exception
+            logging.error(f'cache manager have not inited')
             return None
         return redis.Redis(connection_pool=cls.pool)
