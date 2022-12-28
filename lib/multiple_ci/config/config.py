@@ -9,6 +9,8 @@ CHECKER_COMMIT_COUNT_THRESHOLD = 5
 # -------------------- default CLI config --------------------
 DEFAULT_UPSTREAM_REPO = "wu_fengguang/upstream-repos"
 DEFAULT_UPSTREAM_URL = f"https://gitee.com/{DEFAULT_UPSTREAM_REPO}"
+DEFAULT_LKP_SRC = '/srv/git/lkp-tests'
+DEFAULT_JOB_DIR = '/srv/job'
 
 DEFAULT_REDIS_HOST = 'localhost'
 DEFAULT_REDIS_PORT = 6379

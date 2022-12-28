@@ -14,7 +14,9 @@ prepare() {
     -e RABBITMQ_DEFAULT_USER=root -e RABBITMQ_DEFAULT_PASS=123456 -d rabbitmq:3-management
 
   docker run --name es \
-    -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -d elasticsearch:8.5.3
+    -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" \
+    -e ES_JAVA_OPTS="-Xms256m -Xmx256m" -e "xpack.security.enabled=false" \
+    -e "xpack.security.http.ssl.enabled=false" -d elasticsearch:8.5.3
 
   docker run --name etcd \
     -d -p 2379:2379 -p 2380:2380 \
