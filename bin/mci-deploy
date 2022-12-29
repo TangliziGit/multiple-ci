@@ -17,18 +17,6 @@ prepare() {
     -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" \
     -e ES_JAVA_OPTS="-Xms256m -Xmx256m" -e "xpack.security.enabled=false" \
     -e "xpack.security.http.ssl.enabled=false" -d elasticsearch:8.5.3
-
-  docker run --name etcd \
-    -d -p 2379:2379 -p 2380:2380 \
-    quay.io/coreos/etcd:latest /usr/local/bin/etcd \
-    --name s1 --data-dir /etcd-data \
-    --listen-client-urls http://0.0.0.0:2379 \
-    --advertise-client-urls http://0.0.0.0:2379 \
-    --listen-peer-urls http://0.0.0.0:2380 \
-    --initial-advertise-peer-urls http://0.0.0.0:2380 \
-    --initial-cluster s1=http://0.0.0.0:2380 \
-    --initial-cluster-token tkn \
-    --initial-cluster-state new
 }
 
 install() {
@@ -40,7 +28,6 @@ start() {
   docker start redis
   docker start rabbitmq
   docker start es
-  docker start etcd
 }
 
 

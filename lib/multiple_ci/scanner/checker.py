@@ -9,7 +9,7 @@ from multiple_ci.config import config
 class KeepOutChecker:
     def check(self):
         return False
-    
+
 
 class TimeoutChecker:
     def __init__(self, cache):

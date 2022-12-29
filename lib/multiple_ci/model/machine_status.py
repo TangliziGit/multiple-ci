@@ -1,6 +1,6 @@
 from enum import Enum
 
 class MachineStatus(Enum):
-    IDLE = 1
-    BUSY = 2
-    DOWN = 3
+    idle = 1
+    busy = 2
+    down = 3
