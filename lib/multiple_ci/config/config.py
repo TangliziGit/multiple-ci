@@ -6,6 +6,9 @@ SCANNER_INTERVAL_SEC = 1
 CHECKER_TIMEOUT_NS = 60 * 60 * 10**9    # 60 minutes
 CHECKER_COMMIT_COUNT_THRESHOLD = 5
 
+LKP_RESULT_ROOT = '/result'
+LKP_SERVER = '172.20.0.1'
+
 # -------------------- default CLI config --------------------
 DEFAULT_UPSTREAM_REPO = "wu_fengguang/upstream-repos"
 DEFAULT_UPSTREAM_URL = f"https://gitee.com/{DEFAULT_UPSTREAM_REPO}"
@@ -19,4 +22,4 @@ DEFAULT_REDIS_DB = 0
 DEFAULT_MQ_HOST = 'localhost'
 DEFAULT_ES_ENDPOINT = 'http://localhost:9200'
 
-DEFAULT_SCHEDULER_WEB_PORT = 8080
+DEFAULT_SCHEDULER_WEB_PORT = 3000
