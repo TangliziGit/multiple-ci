@@ -8,16 +8,16 @@ from multiple_ci.scheduler.web import job, machine, boot
 from multiple_ci.scheduler.mq import job as mq_job
 from multiple_ci.utils.mq import MQConsumer
 
-def _run_mq(host, es):
-    MQConsumer(host, 'job-config').consume(mq_job.handle_submit(es))
+def _run_mq(host, es, lkp_src):
+    MQConsumer(host, 'job-config').consume(mq_job.handle_submit(es, lkp_src))
 
 class Scheduler:
-    def __init__(self, port, mq_host, es_endpoint, lkp_src, job_dir):
+    def __init__(self, port, mq_host, es_endpoint, lkp_src, mci_home):
         self.port = port
         self.lkp_src = lkp_src
-        self.job_dir = job_dir
+        self.mci_home = mci_home
         self.es = elasticsearch.Elasticsearch(es_endpoint)
-        self.mq_thread = threading.Thread(target=_run_mq, args=[mq_host, self.es])
+        self.mq_thread = threading.Thread(target=_run_mq, args=[mq_host, self.es, self.lkp_src])
 
     def run(self):
         self.mq_thread.start()
@@ -25,7 +25,7 @@ class Scheduler:
         app = tornado.web.Application([
             ('/machine/([0-9a-zA-Z:]+)/status', machine.MachineStatusHandler),
             ('/job/([0-9]+)/status', job.JobStatusHandler),
-            ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, job_dir=self.job_dir, es=self.es)),
+            ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home, es=self.es)),
         ])
 
         app.listen(self.port)

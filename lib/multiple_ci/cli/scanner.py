@@ -15,7 +15,7 @@ from multiple_ci.config import config
 @click.option('--url', default=config.DEFAULT_UPSTREAM_URL, help='the upstream repo url')
 def main(redis_host, redis_port, redis_db, mq_host, repo, url):
     LOG_FORMAT = "%(asctime)s [%(levelname)s]: %(message)s"
-    logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     caches.CacheManager.init(redis_host, redis_port, redis_db)
 
     s = scanner.Scanner(mq_host)

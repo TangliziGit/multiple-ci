@@ -35,7 +35,7 @@ class ScanThread(threading.Thread):
             job_config = self.repo_queue.get(block=True)
             checker = self.checkers.get_checker(job_config['checker'])
             if checker.check(job_config):
-                logging.debug(f'send job config: config={job_config}')
+                logging.info(f'send job config: config={job_config}')
                 self.mq.publish_dict(job_config)
             job_config['time'] = time.time_ns()
             self.repo_queue.put(job_config)

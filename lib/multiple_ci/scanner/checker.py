@@ -18,11 +18,12 @@ class TimeoutChecker:
     def check(self, job_config):
         now = time.time_ns()
         key = f'timeout.{job_config["name"]}'
-        if self.cache.exists(key) == 0:
+        prev = self.cache.get(key)
+        if self.cache.exists(key) == 0 or prev is None:
             self.cache.set(key, now)
             return True
 
-        prev = int(self.cache.get(key))
+        prev = int(prev.decode('utf-8'))
         self.cache.set(key, now)
         return now - prev > config.CHECKER_TIMEOUT_NS
 
@@ -35,7 +36,8 @@ class CommitCountChecker:
         key = f'commit-count.{job_config["name"]}'
         path = os.path.join("/srv/git", job_config["name"])
 
-        if self.cache.exists(key) == 0:
+        prev = self.cache.get(key)
+        if self.cache.exists(key) == 0 or prev is None:
             cmd = f'git clone {job_config["url"][0]} {path}'
             subprocess.run(cmd.split(" "))
             cmd = f'git -C {path} rev-list --all --count'
@@ -43,9 +45,8 @@ class CommitCountChecker:
             self.cache.set(key, count)
             return True
 
-        prev = int(self.cache.get(key))
-
-        cmd = f'git -C {path} pull'
+        prev = int(prev.decode('utf-8'))
+        cmd = f'git -C {path} pull -q'
         subprocess.run(cmd.split(" "))
         cmd = f'git -C {path} rev-list --all --count'
         now = int(subprocess.check_output(cmd.split(" ")))

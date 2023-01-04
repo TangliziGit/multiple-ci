@@ -36,11 +36,11 @@ LKP_SRC=/srv/lkp
 #       `bin/mci-deploy initrd modules /srv/mci/os/centos7/lib/modules/3.10.0-1160.el7.x86_64`
 # 4. generate lkp initrd:
 #       `bin/mci-deploy initrd lkp`
-# 4. start all dependencies tools & network configs:
+# 5. start all dependencies tools & network configs:
 #       `bin/mci-deploy start`
-# 5. run testbox:
+# 6. run testbox:
 #       `bin/mci-deploy testbox run`
-# 6. then you can start mci-scanner, mci-scheduler, ...
+# 7. then you can start mci-scanner, mci-scheduler, ...
 #
 #
 # NOTE:
@@ -91,7 +91,6 @@ testbox-run() {
     }
 
     qemu-system-x86_64 \
-        -enable-kvm \
         -m 2G \
         -smp 8 \
         -cdrom $ipxe_path \
@@ -217,9 +216,11 @@ install-venv() {
         exit 0
     }
 
-    [[ -f "venv" ]] || python -m venv venv
-    source "$here/../venv/bin/activate"
-    pip install -e "$here/.."
+    [[ -d "venv" ]] || {
+        python -m venv venv
+        source "$here/../venv/bin/activate"
+        pip install -e "$here/.."
+    }
 }
 
 install-depends() {
@@ -323,7 +324,7 @@ EOF
 cat <<EOF | sudo tee ${MCI_HOME}/os/boot.ipxe > /dev/null
 #!ipxe
 cpuid --ext 29 && set arch x86_64 || set arch i386
-chain http://172.20.0.1:3000/boot.ipxe?arch=\${arch}&mac=\${net0/mac}
+chain http://172.20.0.1:3000/boot.ipxe?arch=\${arch}&mac=\${net0/mac} || sleep 10 && reboot
 EOF
 
 # job 1234, just for demo
@@ -362,7 +363,7 @@ cat <<EOF | sudo tee /etc/dnsmasq.conf > /dev/null
 interface=br0
 bind-interfaces
 dhcp-range=172.20.0.2,172.20.255.254
-dhcp-boot=os/boot-dev.ipxe
+dhcp-boot=os/boot.ipxe
 enable-tftp
 tftp-root=${MCI_HOME}
 EOF
