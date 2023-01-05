@@ -3,7 +3,7 @@ import logging
 
 from multiple_ci.config import config
 from multiple_ci.utils import jobs
-from multiple_ci.model import job_status
+from multiple_ci.model import job_state
 
 def handle_submit(es, lkp_src):
     def handle(ch, method, properties, job_config):
@@ -20,7 +20,7 @@ def handle_submit(es, lkp_src):
 
         # set defaults and store it into ES
         job = jobs.generate_id(job)
-        job['status'] = job_status.JobStatus.waiting.name
+        job['state'] = job_state.JobState.waiting.name
         job['os_arch'] = 'x86_64' # job.get('os_arch', 'x86_64')
         job['priority'] = 0
 

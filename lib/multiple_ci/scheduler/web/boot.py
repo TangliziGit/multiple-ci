@@ -1,7 +1,7 @@
 import logging
 
-from multiple_ci.model.job_status import JobStatus
-from multiple_ci.model.machine_status import MachineStatus
+from multiple_ci.model.job_state import JobState
+from multiple_ci.model.machine_state import MachineState
 from multiple_ci.utils import jobs
 from multiple_ci.scheduler.web.util import BaseHandler
 
@@ -38,7 +38,7 @@ class BootHandler(BaseHandler):
                 'bool': {
                     'must': [
                         { 'match': { 'os_arch': arch } },
-                        { 'match': { 'status': JobStatus.waiting.name } },
+                        { 'match': { 'state': JobState.waiting.name}},
                     ]
                 },
             },
@@ -50,7 +50,7 @@ class BootHandler(BaseHandler):
             self.es.index(index='machines', id=mac, document={
                 'mac': mac,
                 'arch': arch,
-                'status': MachineStatus.idle.name,
+                'state': MachineState.idle.name,
             })
             return
 
@@ -68,11 +68,11 @@ class BootHandler(BaseHandler):
         logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
         self.finish(script)
 
-        # update job and test machine status after successful request
-        job['status'] = JobStatus.running.name
+        # update job and test machine state after successful request
+        job['state'] = JobState.running.name
         self.es.index(index='job', id=job['id'], document=job)
         self.es.index(index='machine', id=mac, document={
             'mac': mac,
             'arch': arch,
-            'status': MachineStatus.busy.name,
+            'state': MachineState.busy.name,
         })

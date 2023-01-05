@@ -4,7 +4,7 @@ import elasticsearch
 import tornado.ioloop
 import tornado.web
 
-from multiple_ci.scheduler.web import job, machine, boot
+from multiple_ci.scheduler.web import job, machine, boot, lkp
 from multiple_ci.scheduler.mq import job as mq_job
 from multiple_ci.utils.mq import MQConsumer
 
@@ -30,6 +30,10 @@ class Scheduler:
             ('/job/([0-9a-zA-Z\-]+)', job.JobHandler, dict(es=self.es)),
 
             ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home, es=self.es)),
+
+            ('/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es)),
+            ('/~lkp/cgi-bin/lkp-jobfile-append-var', lkp.JobVarHandler, dict(es=self.es)),
+            ('/~lkp/cgi-bin/lkp-wtmp', lkp.TestBoxHandler, dict(es=self.es)),
         ])
 
         app.listen(self.port)

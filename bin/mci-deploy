@@ -91,6 +91,7 @@ testbox-run() {
     }
 
     qemu-system-x86_64 \
+        -enable-kvm \
         -m 2G \
         -smp 8 \
         -cdrom $ipxe_path \

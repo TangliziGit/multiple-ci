@@ -35,5 +35,5 @@ class MachineHandler(BaseHandler):
 
         updates = json.loads(self.request.body.decode('utf-8'))
         machine = machines[0]['_source'] | updates
-        self.es.index(index='machine', document=machine)
+        self.es.index(index='machine', id=mac, document=machine)
         self.ok(payload=machines)

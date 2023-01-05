@@ -35,5 +35,5 @@ class JobHandler(BaseHandler):
 
         updates = json.loads(self.request.body.decode('utf-8'))
         job = jobs[0]['_source'] | updates
-        self.es.index(index='job', document=job)
+        self.es.index(index='job', id=job_id, document=job)
         self.ok(payload=job)
