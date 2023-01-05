@@ -28,6 +28,6 @@ def handle_submit(es, lkp_src):
         job['result_service'] = 'raw_upload'
         job['RESULT_ROOT'] = '/result'
         job['LKP_SERVER'] = config.LKP_SERVER
-        es.index(index='jobs', id=job['id'], document=job)
+        es.index(index='job', id=job['id'], document=job)
 
     return handle

@@ -23,8 +23,12 @@ class Scheduler:
         self.mq_thread.start()
 
         app = tornado.web.Application([
-            ('/machine/([0-9a-zA-Z:]+)/status', machine.MachineStatusHandler),
-            ('/job/([0-9]+)/status', job.JobStatusHandler),
+            ('/machine', machine.MachineListHandler, dict(es=self.es)),
+            ('/machine/([0-9a-zA-Z:]+)', machine.MachineHandler, dict(es=self.es)),
+
+            ('/job', job.JobListHandler, dict(es=self.es)),
+            ('/job/([0-9a-zA-Z\-]+)', job.JobHandler, dict(es=self.es)),
+
             ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home, es=self.es)),
         ])
 

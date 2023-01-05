@@ -1,10 +1,9 @@
 import logging
 
-import tornado.web
-
 from multiple_ci.model.job_status import JobStatus
 from multiple_ci.model.machine_status import MachineStatus
 from multiple_ci.utils import jobs
+from multiple_ci.scheduler.web.util import BaseHandler
 
 ipxe_scripts = {
     'centos': {}
@@ -19,7 +18,7 @@ initrd tftp://172.20.0.1/initrd/lkp-x86_64.cgz
 boot
 '''
 
-class BootHandler(tornado.web.RequestHandler):
+class BootHandler(BaseHandler):
     def data_received(self, chunk): pass
 
     def initialize(self, lkp_src, mci_home, es):
@@ -32,7 +31,7 @@ class BootHandler(tornado.web.RequestHandler):
         mac = self.get_argument('mac')
 
         # get job id from arch queue
-        result = self.es.search(index='jobs', body={
+        result = self.es.search(index='job', body={
             'size': 1,
             'sort': { 'priority': { 'order': 'asc' } },
             'query': {
@@ -47,13 +46,14 @@ class BootHandler(tornado.web.RequestHandler):
 
         if len(result['hits']['hits']) == 0:
             logging.info(f'no job needs to be executed: mac={mac}, arch={arch}')
-            self.write('#!ipxe\nsleep 10\nreboot')
+            self.finish('#!ipxe\nsleep 10\nreboot')
             self.es.index(index='machines', id=mac, document={
                 'mac': mac,
                 'arch': arch,
                 'status': MachineStatus.idle.name,
             })
             return
+
         job = result['hits']['hits'][0]['_source']
 
         # generate job.cgz and store it into TFTP
@@ -66,12 +66,12 @@ class BootHandler(tornado.web.RequestHandler):
         else:
             script = ipxe_scripts[job['os']][job['os_version']].format(job_id=job['id'])
         logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
-        self.write(script)
+        self.finish(script)
 
         # update job and test machine status after successful request
         job['status'] = JobStatus.running.name
-        self.es.index(index='jobs', id=job['id'], document=job)
-        self.es.index(index='machines', id=mac, document={
+        self.es.index(index='job', id=job['id'], document=job)
+        self.es.index(index='machine', id=mac, document={
             'mac': mac,
             'arch': arch,
             'status': MachineStatus.busy.name,
