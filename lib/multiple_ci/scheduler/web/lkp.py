@@ -8,8 +8,9 @@ from multiple_ci.model.job_state import JobState
 
 class PostRunHandler(BaseHandler):
     def data_received(self, chunk): pass
-    def initialize(self, es):
+    def initialize(self, es, mq_publisher):
         self.es = es
+        self.publisher = mq_publisher
 
     def get(self):
         job_file = self.get_argument('job_file')
@@ -32,6 +33,8 @@ class PostRunHandler(BaseHandler):
         # FIXME: atomic update
         self.es.index(index='job', id=job_id, document=job)
         self.es.index(index='machine', id=machine['mac'], document=machine)
+
+        self.publisher.publish(job_id)
         self.ok()
 
 

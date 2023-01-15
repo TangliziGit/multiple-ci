@@ -13,7 +13,7 @@ def handle_submit(es, lkp_src):
         # merge command key value pairs
         command = job_config['defaults']['submit'][0]['command'].split(" ")
         command = [x for x in command if x != '']
-        job = jobs.merge_yaml(command[:-1], command[-1], lkp_src)
+        job = jobs.merge_yaml(command, lkp_src)
         if job is None:
             logging.warning(f'fail to handle none job: command={command}')
             return
@@ -23,6 +23,7 @@ def handle_submit(es, lkp_src):
         job['state'] = job_state.JobState.waiting.name
         job['os_arch'] = 'x86_64' # job.get('os_arch', 'x86_64')
         job['priority'] = 0
+        job['repo'] = job_config['name']
 
         job['os_mount'] = 'nfs'
         job['result_service'] = 'raw_upload'

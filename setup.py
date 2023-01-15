@@ -10,6 +10,7 @@ setup(
         'console_scripts': [
             'mci-scanner=multiple_ci.cli.scanner:main',
             'mci-scheduler=multiple_ci.cli.scheduler:main',
+            'mci-analyzer=multiple_ci.cli.analyzer:main',
         ],
     },
 )

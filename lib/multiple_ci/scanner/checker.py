@@ -52,7 +52,7 @@ class CommitCountChecker:
         now = int(subprocess.check_output(cmd.split(" ")))
 
         self.cache.set(key, now)
-        return now - prev > config.CHECKER_COMMIT_COUNT_THRESHOLD
+        return now - prev >= config.CHECKER_COMMIT_COUNT_THRESHOLD
 
 
 class CheckerSelector:

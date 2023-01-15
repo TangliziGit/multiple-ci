@@ -10,23 +10,30 @@ def generate_id(job):
     job['id'] = uuid.uuid4()
     return job
 
-def merge_yaml(kvs, yaml_name, lkp_src):
-    yaml_path = list(pathlib.Path(lkp_src).rglob(yaml_name))
-    if len(yaml_path) == 0:
-        logging.warning(f'no such yaml file: yaml_name={yaml_name}')
-        return None
+def merge_yaml(commands, lkp_src):
+    def read_yaml(yaml_name):
+        yaml_path = list(pathlib.Path(lkp_src).rglob(cmd))
+        if len(yaml_path) == 0:
+            logging.warning(f'no such yaml file: yaml_name={yaml_name}')
+            return {}
 
-    if len(yaml_path) > 1:
-        logging.warning(f'ambiguous yaml files: yaml_name={yaml_name}, path={yaml_path}')
-        return None
+        if len(yaml_path) > 1:
+            logging.warning(f'ambiguous yaml files: yaml_name={yaml_name}, path={yaml_path}')
+            return {}
 
-    with open(yaml_path[0]) as f:
-        content = yaml.load(f, Loader=yaml.FullLoader)
-        for kv in kvs:
-            if len(kv) == 0: continue
-            k, v = kv.split('=')
-            content[k] = v
-        return content
+        with open(yaml_path[0]) as f:
+            return yaml.load(f, Loader=yaml.FullLoader)
+
+    content = {}
+    for cmd in commands:
+        if '=' in cmd:
+            k, v = cmd.split('=')
+            content = content | {k: v}
+        elif '.yaml' in cmd or '.yml' in cmd:
+            content = content | read_yaml(cmd)
+        else:
+            logging.warning(f'unknown command dropped: cmd={cmd}')
+    return content
 
 def create_job_package(job, mci_home, lkp_src):
     """
@@ -44,6 +51,14 @@ def create_job_package(job, mci_home, lkp_src):
 
     script_path = os.path.join(lkp_src, 'sbin', 'create-job-cpio.sh')
     cmd = f'{script_path} {job_yaml}'
+    env = os.environ.copy()
+    env['LKP_SRC'] = lkp_src
+    subprocess.run(cmd.split(" "), env=env)
+
+def get_result_stats(job_id, lkp_src):
+    result_directory = os.path.join('/srv/result', job_id, 'result')
+    script_path = os.path.join(lkp_src, 'sbin', 'result2stats')
+    cmd = f'{script_path} {result_directory}'
     env = os.environ.copy()
     env['LKP_SRC'] = lkp_src
     subprocess.run(cmd.split(" "), env=env)

@@ -6,7 +6,7 @@ import tornado.web
 
 from multiple_ci.scheduler.web import job, machine, boot, lkp
 from multiple_ci.scheduler.mq import job as mq_job
-from multiple_ci.utils.mq import MQConsumer
+from multiple_ci.utils.mq import MQConsumer, MQPublisher
 
 def _run_mq(host, es, lkp_src):
     MQConsumer(host, 'job-config').consume(mq_job.handle_submit(es, lkp_src))
@@ -17,6 +17,7 @@ class Scheduler:
         self.lkp_src = lkp_src
         self.mci_home = mci_home
         self.es = elasticsearch.Elasticsearch(es_endpoint)
+        self.mq_publisher = MQPublisher(mq_host, 'result')
         self.mq_thread = threading.Thread(target=_run_mq, args=[mq_host, self.es, self.lkp_src])
 
     def run(self):
@@ -31,7 +32,7 @@ class Scheduler:
 
             ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home, es=self.es)),
 
-            ('/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es)),
+            ('/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es, mq_publisher=self.mq_publisher)),
             ('/~lkp/cgi-bin/lkp-jobfile-append-var', lkp.JobVarHandler, dict(es=self.es)),
             ('/~lkp/cgi-bin/lkp-wtmp', lkp.TestBoxHandler, dict(es=self.es)),
         ])

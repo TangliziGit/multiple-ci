@@ -48,8 +48,9 @@ class Scanner:
         self.listener = RepoListenThread(self.repo_queue)
         self.scanners = [ScanThread(self.repo_queue, mq_host) for __ in range(scanner_count)]
 
-    def init(self, upstream_url, upstream_repo):
-        upstream_path = os.path.join("/srv/git", upstream_repo)
+    def init(self, upstream_url):
+        repo_name = upstream_url.split('/')[-1]
+        upstream_path = os.path.join("/srv/git", repo_name)
         cmd = f"git clone {upstream_url} {upstream_path}"
         subprocess.run(cmd.split(" "))
 
@@ -83,8 +84,7 @@ class Scanner:
 
     @classmethod
     def _repo_iter(cls, upstream_path):
-        # for ch in map(chr, range(ord('a'), ord('z') + 1)):
-        for ch in map(chr, range(ord('a'), ord('c') + 1)):
+        for ch in map(chr, range(ord('a'), ord('z') + 1)):
             path = os.path.join(upstream_path, ch)
             for root, dirs, files in os.walk(path):
                 for d in dirs:

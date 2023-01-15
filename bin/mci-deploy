@@ -51,6 +51,10 @@ LKP_SRC=/srv/lkp
 
 here="$(dirname "$0")"
 
+# ====================== utility ======================
+unknown-command() {
+    echo "no such command: $*"
+}
 
 # ====================== start ======================
 start-network() {
@@ -105,6 +109,7 @@ testbox() {
     start-network
     case $2 in
         "run")  testbox-run;;
+        "*")    unknown-command "$@";;
     esac
 }
 
@@ -167,6 +172,7 @@ os() {
         "run")      os-run;;
         "mount")    os-mount;;
         "umount")   os-umount;;
+        "*")        unknown-command "$@";;
     esac
 }
 
@@ -206,6 +212,7 @@ initrd() {
         "job")      initrd-job "$3";;
         "lkp")      initrd-lkp;;
         "modules")  initrd-modules "$3";;
+        "*")        unknown-command "$@";;
     esac
 }
 
@@ -392,6 +399,36 @@ install() {
     install-lkp
 }
 
+# ====================== clean ======================
+clean-redis() {
+  echo "flushall sync" | redis-cli
+}
+
+clean-es() {
+  curl -X POST "localhost:9200/job/_delete_by_query?pretty" \
+    -H 'Content-Type: application/json' \
+    -d'{"query": {"match_all": {}}}'
+}
+
+clean-job() {
+  rm -rf $MCI_HOME/job/*
+  sudo rm -rf /srv/result/*
+}
+
+clean() {
+  case $2 in
+  "redis")  clean-redis;;
+  "es")     clean-es;;
+  "job")    clean-job;;
+  "all")
+    clean-redis
+    clean-es
+    clean-job
+    ;;
+  "*")  unknown-command "$@";;
+  esac
+}
+
 # ====================== options ======================
 case $1 in
     "os")
@@ -403,11 +440,17 @@ case $1 in
     "initrd")
         initrd "$@"
         ;;
+    "clean")
+        clean "$@"
+        ;;
     "install")
         install
         ;;
     "start")
         start-network
         start-depends
+        ;;
+    "*")
+        unknown-command "$@"
         ;;
 esac
