@@ -5,7 +5,6 @@ from multiple_ci.scheduler.web.util import BaseHandler
 
 
 class MachineListHandler(BaseHandler):
-    def data_received(self, chunk): pass
     def set_default_headers(self):
         self.set_header('Content-Type', 'application/json')
 
@@ -19,7 +18,6 @@ class MachineListHandler(BaseHandler):
 
 
 class MachineHandler(BaseHandler):
-    def data_received(self, chunk): pass
     def set_default_headers(self):
         self.set_header('Content-Type', 'application/json')
     def initialize(self, es):

@@ -1,4 +1,4 @@
-class JobConfig(dict):
+class PlanConfig(dict):
     def __init__(self, config):
         dict.__init__(self, **config)
 

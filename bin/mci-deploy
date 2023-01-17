@@ -408,6 +408,10 @@ clean-es() {
   curl -X POST "localhost:9200/job/_delete_by_query?pretty" \
     -H 'Content-Type: application/json' \
     -d'{"query": {"match_all": {}}}'
+
+  curl -X POST "localhost:9200/plan/_delete_by_query?pretty" \
+    -H 'Content-Type: application/json' \
+    -d'{"query": {"match_all": {}}}'
 }
 
 clean-job() {

@@ -1,13 +1,14 @@
 import http
 import logging
 
+import elasticsearch
+
 from multiple_ci.scheduler.web.util import BaseHandler
 from multiple_ci.model.machine_state import MachineState
 from multiple_ci.model.job_state import JobState
 
 
 class PostRunHandler(BaseHandler):
-    def data_received(self, chunk): pass
     def initialize(self, es, mq_publisher):
         self.es = es
         self.publisher = mq_publisher
@@ -39,7 +40,6 @@ class PostRunHandler(BaseHandler):
 
 
 class JobVarHandler(BaseHandler):
-    def data_received(self, chunk): pass
     def initialize(self, es):
         self.es = es
 
@@ -63,7 +63,6 @@ class JobVarHandler(BaseHandler):
 
 
 class TestBoxHandler(BaseHandler):
-    def data_received(self, chunk): pass
     def initialize(self, es):
         self.es = es
 
@@ -86,3 +85,53 @@ class TestBoxHandler(BaseHandler):
 
         self.es.index(index='machine', id=mac, document=machine)
         self.ok(machine)
+
+class PlanVmlinuzHandler(BaseHandler):
+    def initialize(self, es):
+        self.es = es
+
+    def get(self):
+        plan_id = self.get_argument('plan_id')
+        path = self.get_argument('path')
+        logging.info(f'set plan vmlinuz: plan_id={plan_id}, path={path}')
+
+        while True:
+            result = self.es.get(index='plan', id=plan_id)
+            plan = result['_source']
+            plan['config']['vmlinuz'] = path
+            try:
+                self.es.index(index='plan', id=plan_id, document=plan,
+                              if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
+            except elasticsearch.ConflictError as err:
+                logging.warning(f'retry to handle result since concurrency control failed: err={err}')
+                continue
+            else:
+                logging.debug(f'result dealt successfully')
+                break
+        self.ok()
+
+class PlanPackagesHandler(BaseHandler):
+    def initialize(self, es):
+        self.es = es
+
+    def get(self):
+        plan_id = self.get_argument('plan_id')
+        path = self.get_argument('path')
+        logging.info(f'set plan packages: plan_id={plan_id}, path={path}')
+
+        while True:
+            result = self.es.get(index='plan', id=plan_id)
+            plan = result['_source']
+            if 'packages' not in plan['config']:
+                plan['config']['packages'] = []
+            plan['config']['packages'].append(path)
+            try:
+                self.es.index(index='plan', id=plan_id, document=plan,
+                              if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
+            except elasticsearch.ConflictError as err:
+                logging.warning(f'retry to handle result since concurrency control failed: err={err}')
+                continue
+            else:
+                logging.debug(f'result dealt successfully')
+                break
+        self.ok()

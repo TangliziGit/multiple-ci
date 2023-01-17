@@ -11,8 +11,10 @@ from multiple_ci.config import config
 @click.option('--es-endpoint', default=config.DEFAULT_ES_ENDPOINT, help='ES host and port')
 @click.option('--lkp-src', default=config.DEFAULT_LKP_SRC, help='the lkp-tests source path')
 @click.option('--mci-home', default=config.DEFAULT_MULTIPLE_CI_HOME, help='multiple-ci home directory')
-def main(port, mq_host, es_endpoint, lkp_src, mci_home):
+@click.option('--upstream-url', default=config.DEFAULT_UPSTREAM_URL, help='the upstream repo url')
+def main(port, mq_host, es_endpoint, lkp_src, mci_home, upstream_url):
     LOG_FORMAT = "%(asctime)s [%(levelname)s]: %(message)s"
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 
-    scheduler.Scheduler(port, mq_host, es_endpoint, lkp_src, mci_home).run()
+    upstream_name = upstream_url.split('/')[-1]
+    scheduler.Scheduler(port, mq_host, es_endpoint, lkp_src, mci_home, upstream_name).run()

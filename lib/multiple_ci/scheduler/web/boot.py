@@ -1,6 +1,9 @@
 import logging
 
+import elasticsearch
+
 from multiple_ci.model.job_state import JobState
+from multiple_ci.model.stage_state import StageState
 from multiple_ci.model.machine_state import MachineState
 from multiple_ci.utils import jobs
 from multiple_ci.scheduler.web.util import BaseHandler
@@ -10,7 +13,7 @@ ipxe_scripts = {
 }
 
 ipxe_scripts['centos']['7'] = '''#!ipxe
-kernel tftp://172.20.0.1/os/centos7/boot/vmlinuz-3.10.0-1160.el7.x86_64 user=lkp job=/lkp/scheduled/job.yaml ip=dhcp rootovl ro root=172.20.0.1:/srv/mci/os/centos7 initrd=initramfs.lkp-3.10.0-1160.el7.x86_64.img initrd=modules-3.10.0-1160.el7.x86_64.cgz initrd=lkp-x86_64.cgz initrd=job.cgz rootfs_disk=/dev/sda
+kernel tftp://172.20.0.1/os/centos7/boot/vmlinuz-3.10.0-1160.el7.x86_64 {arguments} user=lkp job=/lkp/scheduled/job.yaml ip=dhcp rootovl ro root=172.20.0.1:/srv/mci/os/centos7 initrd=initramfs.lkp-3.10.0-1160.el7.x86_64.img initrd=modules-3.10.0-1160.el7.x86_64.cgz initrd=lkp-x86_64.cgz initrd=job.cgz rootfs_disk=/dev/sda
 initrd tftp://172.20.0.1/os/centos7/boot/modules-3.10.0-1160.el7.x86_64.cgz
 initrd tftp://172.20.0.1/os/centos7/boot/initramfs.lkp-3.10.0-1160.el7.x86_64.img
 initrd tftp://172.20.0.1/job/{job_id}/job.cgz
@@ -19,8 +22,6 @@ boot
 '''
 
 class BootHandler(BaseHandler):
-    def data_received(self, chunk): pass
-
     def initialize(self, lkp_src, mci_home, es):
         self.es = es
         self.lkp_src = lkp_src
@@ -61,10 +62,18 @@ class BootHandler(BaseHandler):
 
         # generate ipxe script
         if job['os'] not in ipxe_scripts or job['os_version'] not in ipxe_scripts[job['os']]:
-            script = ipxe_scripts['centos']['7'].format(job_id=job['id'])
             logging.warning(f'this dist not support and use centos7 instead: os={job["os"]}, version={job["os_version"]}')
+            script = ipxe_scripts['centos']['7']
         else:
-            script = ipxe_scripts[job['os']][job['os_version']].format(job_id=job['id'])
+            script = ipxe_scripts[job['os']][job['os_version']]
+
+        # TODO: clean code
+        arguments = ''
+        plan = self.es.get(index='plan', id=job['plan'])['_source']
+        for path in plan['config']['packages']:
+            arguments = f'http://172.20.0.1:3080/{path},{arguments}'
+        arguments=f'packages={arguments[:-1]}'
+        script = script.format(job_id=job['id'], arguments=arguments)
         logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
         self.finish(script)
 
@@ -76,3 +85,21 @@ class BootHandler(BaseHandler):
             'arch': arch,
             'state': MachineState.busy.name,
         })
+
+        while True:
+            result = self.es.get(index='plan', id=job['plan'])
+            plan = result['_source']
+            stage_idx = next(idx for idx, stage in enumerate(plan['stages']) \
+                             if stage['name'] == job['stage'])
+            stage = plan['stages'][stage_idx]
+            if stage['state'] != StageState.waiting.name:
+                break
+
+            stage['state'] = StageState.running.name
+            try:
+                self.es.index(index='plan', id=plan['id'], document=plan)
+            except elasticsearch.ConflictError as err:
+                logging.warning(f'retry to handle result since concurrency control failed: err={err}')
+            else:
+                logging.debug(f'result dealt successfully')
+                break

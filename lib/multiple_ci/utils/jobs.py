@@ -1,14 +1,14 @@
+import uuid
 import logging
 import os.path
 import subprocess
-import uuid
 import pathlib
 
 import yaml
 
-def generate_id(job):
-    job['id'] = uuid.uuid4()
-    return job
+from multiple_ci.config import config
+from multiple_ci.model import job_state
+
 
 def merge_yaml(commands, lkp_src):
     def read_yaml(yaml_name):
@@ -62,3 +62,32 @@ def get_result_stats(job_id, lkp_src):
     env = os.environ.copy()
     env['LKP_SRC'] = lkp_src
     subprocess.run(cmd.split(" "), env=env)
+
+# FIXME: check if job valid
+# - stage name should not be duplicated
+# - os, os_arch, os_version, os_mount should be supported ones
+def generate_job(command, plan, stage_name, lkp_src):
+    command = [x for x in command.split(" ") if x != '']
+    job = merge_yaml(command, lkp_src)
+    if job is None:
+        logging.warning(f'fail to handle none job: command={command}')
+        return None
+
+    # set defaults and store it into ES
+    job['os'] = job.get('os', 'centos')
+    job['os_arch'] = job.get('os_arch', 'x86_64')
+    job['os_mount'] = job.get('os_mount', 'nfs')
+    job['os_version'] = job.get('os_version', '7')
+
+    job['id'] = uuid.uuid4()
+    job['plan'] = plan['id']
+    job['stage'] = stage_name
+    job['state'] = job_state.JobState.waiting.name
+    job['priority'] = 0
+    job['repository'] = plan['repository']
+    job['PKGBUILD'] = plan['PKGBUILD']
+
+    job['result_service'] = 'raw_upload'
+    job['RESULT_ROOT'] = '/result'
+    job['LKP_SERVER'] = config.LKP_SERVER
+    return job

@@ -7,16 +7,19 @@ import elasticsearch
 import yaml
 
 from multiple_ci.utils import jobs
-from multiple_ci.utils.mq import MQConsumer
+from multiple_ci.model.job_state import JobState
+from multiple_ci.model.stage_state import StageState
+from multiple_ci.utils.mq import MQConsumer, MQPublisher
 
 
 # TODO: multi-thread
 class AnalyzeHandler:
-    def __init__(self, es, lkp_src):
+    def __init__(self, es, mq_publisher, lkp_src):
         self.es = es
+        self.mq_publisher = mq_publisher
         self.lkp_src = lkp_src
         with open(os.path.join(self.lkp_src, 'etc', 'failure')) as f:
-            self.failures = f.readlines()
+            self.failures = [p[:-1] for p in f.readlines()]
 
     def is_failure(self, stats: dict):
         def matches(key):
@@ -25,24 +28,53 @@ class AnalyzeHandler:
                     return True
             return False
 
-        for k, v in stats.items():
+        for k in stats.keys():
             if matches(k):
                 return True
         return False
 
-    def next_stage_job(self, job_id):
-        logging.info(f'the job is successful: job_id={job_id}')
+    def handle_result(self, job, is_failure):
+        logging.info(f'job result analysis: job_id={job["id"]}, is_failure={is_failure}')
 
-        job_list = self.es.search(index='job', query={ 'match': {'id': job_id } })['hits']['hits']
-        if len(job_list) == 0:
-            logging.warning(f'no such job in es: job_id={job_id}')
+        def success():
+            stage['residual'] -= 1
+            no_residual = stage['residual'] == 0 and stage['state'] == StageState.running.name
+            if no_residual:
+                stage['state'] = StageState.success.name
+            self.es.index(index='plan', id=plan['id'], document=plan,
+                          if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
+            # trigger next stage only when es.index success
+            if no_residual:
+                self.mq_publisher.publish_dict({
+                    "plan": plan['id'],
+                    "current_stage": stage['name']
+                })
 
-        job = job_list[0]['_source']
-        defaults_path = os.path.join('/srv/git', job['repo'], 'DEFAULTS')
-        with open(defaults_path) as f:
-            defaults = yaml.load(f, Loader=yaml.FullLoader)
+        def failure():
+            stage['state'] = StageState.failure.name
+            self.es.index(index='plan', id=plan['id'], document=plan,
+                          if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
+            # TODO: send reboot action
+            # TODO: notify via email
 
-    def handler(self):
+        while True:
+            result = self.es.get(index='plan', id=job['plan'])
+            plan = result['_source']
+            stage_idx = next(idx for idx, stage in enumerate(plan['stages']) \
+                             if stage['name'] == job['stage'])
+            stage = plan['stages'][stage_idx]
+
+            try:
+                failure() if is_failure else success()
+            except elasticsearch.ConflictError as err:
+                logging.warning(f'retry to handle result since concurrency control failed: err={err}')
+            else:
+                logging.debug(f'result dealt successfully')
+                break
+        job['success'] = not is_failure
+        self.es.index(index='job', id=job['id'], document=job)
+
+    def mq_handler(self):
         def handle(ch, method, properties, job_id):
             job_id = job_id.decode('utf-8')
             logging.info(f'received result analysis task: job_id={job_id}')
@@ -51,12 +83,8 @@ class AnalyzeHandler:
             with open(os.path.join('/srv/result', job_id, 'result', 'stats.json')) as f:
                 stats = json.load(f)
 
-            if self.is_failure(stats):
-                # TODO: send email
-                logging.info(f'the job is failed: job_id={job_id}')
-                return
-
-            self.next_stage_job(job_id)
+            job = self.es.get(index='job', id=job_id)['_source']
+            self.handle_result(job, self.is_failure(stats))
 
         return handle
 
@@ -64,10 +92,11 @@ class AnalyzeHandler:
 class ResultAnalyzer:
     def __init__(self, mq_host, es_endpoint, lkp_src):
         self.mq_consumer = MQConsumer(mq_host, 'result')
+        self.mq_publisher = MQPublisher(mq_host, 'next-stage')
         self.es = elasticsearch.Elasticsearch(es_endpoint)
         self.lkp_src = lkp_src
 
     def run(self):
-        self.mq_consumer.consume(AnalyzeHandler(self.es, self.lkp_src).handler())
+        self.mq_consumer.consume(AnalyzeHandler(self.es, self.mq_publisher, self.lkp_src).mq_handler())
         # handler = AnalyzeHandler(self.lkp_src).handler()
         # handler('', '', '', b'903fa2fc-72c5-451d-bc87-67850f48cee2')

@@ -9,7 +9,7 @@ import queue
 
 from multiple_ci.scanner.checker import CheckerSelector
 from multiple_ci.utils.mq import MQPublisher
-from multiple_ci.model.job_config import JobConfig
+from multiple_ci.model.job_config import PlanConfig
 from multiple_ci.config import config
 
 
@@ -24,58 +24,81 @@ class RepoListenThread(threading.Thread):
 
 
 class ScanThread(threading.Thread):
-    def __init__(self, repo_queue, mq_host):
+    def __init__(self, repo_queue, mq_host, meta_name):
         threading.Thread.__init__(self)
         self.repo_queue = repo_queue
-        self.mq = MQPublisher(mq_host, 'job-config')
+        self.mq = MQPublisher(mq_host, 'new-plan')
         self.checkers = CheckerSelector()
+        self.meta_name = meta_name
 
     def run(self):
         while True:
+            time.sleep(config.SCANNER_INTERVAL_SEC)
+
             job_config = self.repo_queue.get(block=True)
             checker = self.checkers.get_checker(job_config['checker'])
             if checker.check(job_config):
-                logging.info(f'send job config: config={job_config}')
-                self.mq.publish_dict(job_config)
+                plan_config = {
+                    "time": time.time_ns(),
+                    "name": job_config['name'],
+                    "commit": {
+                        "meta": self._get_commit_id(self.meta_name),
+                        "repo": self._get_commit_id(job_config['name'])
+                    },
+                    "repository": job_config['url'],
+                    "PKGBUILD": job_config["PKGBUILD"]
+                }
+                logging.info(f'send new plan: plan_config={plan_config}')
+                self.mq.publish_dict(plan_config)
+
             job_config['time'] = time.time_ns()
             self.repo_queue.put(job_config)
-            time.sleep(config.SCANNER_INTERVAL_SEC)
+
+    def _get_commit_id(self, repo_name):
+        repo_path = os.path.join("/srv/git", repo_name)
+        cmd = f'git -C {repo_path} log --pretty=format:"%H" -n 1'
+        commit_id = subprocess.check_output(cmd.split(" ")).decode('utf-8')
+        return commit_id[1:-1]
 
 
 class Scanner:
-    def __init__(self, mq_host, scanner_count=config.SCANNER_COUNT):
+    def __init__(self, mq_host, scanner_count=config.SCANNER_COUNT, upstream_url=config.DEFAULT_UPSTREAM_URL):
+        self.upstream_url = upstream_url
         self.repo_queue = queue.PriorityQueue(config.SCANNER_REPO_QUEUE_CAPACITY)
         self.listener = RepoListenThread(self.repo_queue)
-        self.scanners = [ScanThread(self.repo_queue, mq_host) for __ in range(scanner_count)]
+        meta_repo_name = self.upstream_url.split('/')[-1]
+        self.scanners = [ScanThread(self.repo_queue, mq_host, meta_repo_name) for __ in range(scanner_count)]
 
-    def init(self, upstream_url):
-        repo_name = upstream_url.split('/')[-1]
+    def init(self):
+        repo_name = self.upstream_url.split('/')[-1]
         upstream_path = os.path.join("/srv/git", repo_name)
-        cmd = f"git clone {upstream_url} {upstream_path}"
+        # FIXME: check directory existence
+        cmd = f"git clone {self.upstream_url} {upstream_path}"
         subprocess.run(cmd.split(" "))
 
         for directory, name in Scanner._repo_iter(upstream_path):
-            config_path = os.path.join(directory, name)
-            defaults_path = os.path.join(directory, 'DEFAULTS')
-            with open(config_path) as config_file:
-                raw_config = yaml.load(config_file, Loader=yaml.FullLoader)
-                if 'url' not in raw_config:
-                    continue
-                if not os.path.exists(defaults_path):
-                    continue
+            meta_path = os.path.join(directory, 'meta.yaml')
+            plan_path = os.path.join(directory, 'plan.yaml')
+            with open(meta_path) as meta_file:
+                meta = yaml.load(meta_file, Loader=yaml.FullLoader)
+                # TODO: validate meta.yaml
+                if 'repository' not in meta: continue
 
-                # TODO: document on config file
-                with open(defaults_path) as defaults_file:
-                    job_config = {
+                # TODO: default plan
+                if not os.path.exists(plan_path): continue
+
+                with open(plan_path) as plan_file:
+                    plan_config = {
                         'time': time.time_ns(),
-                        'url': raw_config['url'],
+                        'url': meta['repository'],
                         'dir': directory,
                         'name': name,
-                        'checker': raw_config.get('checker', 'commit-count'),
-                        'defaults': yaml.load(defaults_file, Loader=yaml.FullLoader)
+                        'checker': meta.get('checker', 'commit-count'),
+                        'defaults': yaml.load(plan_file, Loader=yaml.FullLoader),
+                        'PKGBUILD': meta.get('PKGBUILD', None)
                     }
-                    logging.debug(f'put job config into queue: config={job_config}')
-                    self.repo_queue.put(JobConfig(job_config))
+                    logging.debug(f'put plan config into queue: config={plan_config}')
+                    self.repo_queue.put(PlanConfig(plan_config))
 
     def scan(self):
         self.listener.start()
