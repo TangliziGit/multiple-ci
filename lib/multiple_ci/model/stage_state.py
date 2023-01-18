@@ -5,3 +5,4 @@ class StageState(Enum):
     running = 2
     failure = 3
     success = 4
+    canceled = 5

@@ -13,6 +13,12 @@ from multiple_ci.model.job_config import PlanConfig
 from multiple_ci.config import config
 
 
+def get_commit_id(repo_name):
+    repo_path = os.path.join("/srv/git", repo_name)
+    cmd = f'git -C {repo_path} log --pretty=format:"%H" -n 1'
+    commit_id = subprocess.check_output(cmd.split(" ")).decode('utf-8')
+    return commit_id[1:-1]
+
 class RepoListenThread(threading.Thread):
     def __init__(self, repo_queue):
         threading.Thread.__init__(self)
@@ -42,8 +48,8 @@ class ScanThread(threading.Thread):
                     "time": time.time_ns(),
                     "name": job_config['name'],
                     "commit": {
-                        "meta": self._get_commit_id(self.meta_name),
-                        "repo": self._get_commit_id(job_config['name'])
+                        "meta": get_commit_id(self.meta_name),
+                        "repo": get_commit_id(job_config['name'])
                     },
                     "repository": job_config['url'],
                     "PKGBUILD": job_config["PKGBUILD"]
@@ -54,15 +60,11 @@ class ScanThread(threading.Thread):
             job_config['time'] = time.time_ns()
             self.repo_queue.put(job_config)
 
-    def _get_commit_id(self, repo_name):
-        repo_path = os.path.join("/srv/git", repo_name)
-        cmd = f'git -C {repo_path} log --pretty=format:"%H" -n 1'
-        commit_id = subprocess.check_output(cmd.split(" ")).decode('utf-8')
-        return commit_id[1:-1]
 
 
 class Scanner:
     def __init__(self, mq_host, scanner_count=config.SCANNER_COUNT, upstream_url=config.DEFAULT_UPSTREAM_URL):
+        self.mq_host = mq_host
         self.upstream_url = upstream_url
         self.repo_queue = queue.PriorityQueue(config.SCANNER_REPO_QUEUE_CAPACITY)
         self.listener = RepoListenThread(self.repo_queue)
@@ -72,9 +74,12 @@ class Scanner:
     def init(self):
         repo_name = self.upstream_url.split('/')[-1]
         upstream_path = os.path.join("/srv/git", repo_name)
-        # FIXME: check directory existence
-        cmd = f"git clone {self.upstream_url} {upstream_path}"
-        subprocess.run(cmd.split(" "))
+        if os.path.exists(upstream_path):
+            cmd = f"git -C {upstream_path} pull --rebase"
+            subprocess.run(cmd.split(" "))
+        else:
+            cmd = f"git clone {self.upstream_url} {upstream_path}"
+            subprocess.run(cmd.split(" "))
 
         for directory, name in Scanner._repo_iter(upstream_path):
             meta_path = os.path.join(directory, 'meta.yaml')
@@ -104,6 +109,46 @@ class Scanner:
         self.listener.start()
         for scanner in self.scanners:
             scanner.start()
+
+    def send(self, repo):
+        """
+        send a repo without any checker just for debug
+        """
+        repo_name = self.upstream_url.split('/')[-1]
+        upstream_path = os.path.join("/srv/git", repo_name)
+        if os.path.exists(upstream_path):
+            cmd = f"git -C {upstream_path} pull --rebase"
+            subprocess.run(cmd.split(" "))
+        else:
+            cmd = f"git clone {self.upstream_url} {upstream_path}"
+            subprocess.run(cmd.split(" "))
+            
+        meta_repo_name = self.upstream_url.split('/')[-1]
+        directory = os.path.join('/srv/git', meta_repo_name, repo[0], repo)
+        meta_path = os.path.join(directory, 'meta.yaml')
+        with open(meta_path) as meta_file:
+            meta = yaml.load(meta_file, Loader=yaml.FullLoader)
+
+            repo_path = os.path.join('/srv/git', repo)
+            if os.path.exists(repo_path):
+                cmd = f"git -C {repo} pull --rebase"
+                subprocess.run(cmd.split(" "))
+            else:
+                cmd = f"git clone --depth 1 {meta['repository']} {repo_path}"
+                subprocess.run(cmd.split(" "))
+
+            plan_config = {
+                "time": time.time_ns(),
+                "name": repo,
+                "commit": {
+                    "meta": get_commit_id(meta_repo_name),
+                    "repo": get_commit_id(repo)
+                },
+                "repository": meta['repository'],
+                "PKGBUILD": meta.get("PKGBUILD", None)
+            }
+            logging.info(f'send new plan: plan_config={plan_config}')
+            MQPublisher(self.mq_host, 'new-plan').publish_dict(plan_config)
 
     @classmethod
     def _repo_iter(cls, upstream_path):

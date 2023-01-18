@@ -4,18 +4,18 @@ import json
 import re
 
 import elasticsearch
-import yaml
 
 from multiple_ci.utils import jobs
-from multiple_ci.model.job_state import JobState
 from multiple_ci.model.stage_state import StageState
 from multiple_ci.utils.mq import MQConsumer, MQPublisher
+from multiple_ci.analyzer.api import Apis
 
 
 # TODO: multi-thread
 class AnalyzeHandler:
-    def __init__(self, es, mq_publisher, lkp_src):
+    def __init__(self, es, api, mq_publisher, lkp_src):
         self.es = es
+        self.api = api
         self.mq_publisher = mq_publisher
         self.lkp_src = lkp_src
         with open(os.path.join(self.lkp_src, 'etc', 'failure')) as f:
@@ -51,10 +51,11 @@ class AnalyzeHandler:
                 })
 
         def failure():
+            stage['residual'] -= 1
             stage['state'] = StageState.failure.name
             self.es.index(index='plan', id=plan['id'], document=plan,
                           if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
-            # TODO: send reboot action
+            self.api.cancel_stage(plan['id'], stage['name'])
             # TODO: notify via email
 
         while True:
@@ -90,13 +91,14 @@ class AnalyzeHandler:
 
 
 class ResultAnalyzer:
-    def __init__(self, mq_host, es_endpoint, lkp_src):
+    def __init__(self, mq_host, es_endpoint, scheduler_endpoint, lkp_src):
         self.mq_consumer = MQConsumer(mq_host, 'result')
         self.mq_publisher = MQPublisher(mq_host, 'next-stage')
         self.es = elasticsearch.Elasticsearch(es_endpoint)
+        self.api = Apis(scheduler_endpoint)
         self.lkp_src = lkp_src
 
     def run(self):
-        self.mq_consumer.consume(AnalyzeHandler(self.es, self.mq_publisher, self.lkp_src).mq_handler())
+        self.mq_consumer.consume(AnalyzeHandler(self.es, self.api, self.mq_publisher, self.lkp_src).mq_handler())
         # handler = AnalyzeHandler(self.lkp_src).handler()
         # handler('', '', '', b'903fa2fc-72c5-451d-bc87-67850f48cee2')

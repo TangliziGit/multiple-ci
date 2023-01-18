@@ -38,7 +38,7 @@ class CommitCountChecker:
 
         prev = self.cache.get(key)
         if self.cache.exists(key) == 0 or prev is None:
-            cmd = f'git clone {job_config["url"]} {path}'
+            cmd = f'git clone --depth 1 {job_config["url"]} {path}'
             subprocess.run(cmd.split(" "))
             cmd = f'git -C {path} rev-list --all --count'
             count = int(subprocess.check_output(cmd.split(" ")))

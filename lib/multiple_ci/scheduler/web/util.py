@@ -56,3 +56,8 @@ class BaseHandler(tornado.web.RequestHandler):
                      message=traceback.format_exception(*kwargs["exc_info"])[-1])
         else:
             self.err(status_code, message='unknown error occurred')
+
+class JsonBaseHandler(BaseHandler):
+    def set_default_headers(self):
+        self.set_header('Content-Type', 'application/json')
+

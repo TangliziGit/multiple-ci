@@ -86,19 +86,19 @@ class TestBoxHandler(BaseHandler):
         self.es.index(index='machine', id=mac, document=machine)
         self.ok(machine)
 
-class PlanVmlinuzHandler(BaseHandler):
+class PlanKernelHandler(BaseHandler):
     def initialize(self, es):
         self.es = es
 
     def get(self):
         plan_id = self.get_argument('plan_id')
         path = self.get_argument('path')
-        logging.info(f'set plan vmlinuz: plan_id={plan_id}, path={path}')
+        logging.info(f'set plan kernel: plan_id={plan_id}, path={path}')
 
         while True:
             result = self.es.get(index='plan', id=plan_id)
             plan = result['_source']
-            plan['config']['vmlinuz'] = path
+            plan['config']['kernel'] = path
             try:
                 self.es.index(index='plan', id=plan_id, document=plan,
                               if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])

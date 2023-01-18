@@ -1,12 +1,10 @@
 import http
 import json
 
-from multiple_ci.scheduler.web.util import BaseHandler
+from multiple_ci.scheduler.web.util import JsonBaseHandler
 
 
-class MachineListHandler(BaseHandler):
-    def set_default_headers(self):
-        self.set_header('Content-Type', 'application/json')
+class MachineListHandler(JsonBaseHandler):
 
     def initialize(self, es):
         self.es = es
@@ -17,9 +15,7 @@ class MachineListHandler(BaseHandler):
         self.ok(payload=jobs)
 
 
-class MachineHandler(BaseHandler):
-    def set_default_headers(self):
-        self.set_header('Content-Type', 'application/json')
+class MachineHandler(JsonBaseHandler):
     def initialize(self, es):
         self.es = es
 

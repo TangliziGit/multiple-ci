@@ -9,6 +9,9 @@ CHECKER_COMMIT_COUNT_THRESHOLD = 5
 LKP_RESULT_ROOT = '/result'
 LKP_SERVER = '172.20.0.1'
 
+HEARTBEAT_INTERVAL_SEC = 10
+MACHINE_DOWN_TIMER_SEC = 60
+
 # -------------------- default CLI config --------------------
 DEFAULT_UPSTREAM_URL = f"https://github.com/TangliziGit/multiple-ci-repos"
 DEFAULT_MULTIPLE_CI_HOME = '/srv/mci'
@@ -22,3 +25,4 @@ DEFAULT_MQ_HOST = 'localhost'
 DEFAULT_ES_ENDPOINT = 'http://localhost:9200'
 
 DEFAULT_SCHEDULER_WEB_PORT = 3000
+DEFAULT_SCHEDULER_ENDPOINT = f'localhost:{DEFAULT_SCHEDULER_WEB_PORT}'

@@ -45,7 +45,7 @@ def handle_new_plan(es, lkp_src, upstream_name):
             "PKGBUILD": arg.get('PKGBUILD', None),
             "stages": [],
             "config": {
-                "vmlinuz": '',
+                "kernel": '',
                 "packages": []
             }
         }
