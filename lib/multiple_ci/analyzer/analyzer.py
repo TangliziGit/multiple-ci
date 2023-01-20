@@ -21,7 +21,15 @@ class AnalyzeHandler:
         with open(os.path.join(self.lkp_src, 'etc', 'failure')) as f:
             self.failures = [p[:-1] for p in f.readlines()]
 
-    def is_failure(self, stats: dict):
+    def is_failure(self, job):
+        stats_path = os.path.join('/srv/result', job['id'], 'result', 'stats.json')
+        if not os.path.exists(stats_path):
+            # if stats.json was not generated then the job was failed
+            return True
+
+        with open(stats_path) as f:
+            stats = json.load(f)
+
         def matches(key):
             for pattern in self.failures:
                 if re.match(pattern, key) is not None:
@@ -81,11 +89,8 @@ class AnalyzeHandler:
             logging.info(f'received result analysis task: job_id={job_id}')
 
             jobs.get_result_stats(job_id, self.lkp_src)
-            with open(os.path.join('/srv/result', job_id, 'result', 'stats.json')) as f:
-                stats = json.load(f)
-
             job = self.es.get(index='job', id=job_id)['_source']
-            self.handle_result(job, self.is_failure(stats))
+            self.handle_result(job, self.is_failure(job))
 
         return handle
 

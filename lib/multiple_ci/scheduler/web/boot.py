@@ -106,11 +106,12 @@ class BootHandler(BaseHandler):
 
         # generate ipxe script
         plan = self.es.get(index='plan', id=job['plan'])['_source']
-        packages = [f'http://172.20.0.1:3080/{p}' for p in plan['config']['packages']]
+        configure = plan['config']
+        packages = [f'http://172.20.0.1:3080/{p}' for p in configure['packages']]
 
         arguments = [ f'packages={",".join(packages)}' ]
-        initrd = [ f'ftp://172.20.0.1/job/{job["id"]}/job.cgz' ]
-        kernel = plan['config']['kernel']
+        initrd = [ f'tftp://172.20.0.1/job/{job["id"]}/job.cgz' ]
+        kernel = f"http://172.20.0.1:3080/{configure['kernel']}" if configure['kernel'] is not '' else None
         script = generate_ipxe_script(job['os'], job['os_version'], kernel, arguments, initrd)
 
         script = script.format(job_id=job['id'], arguments=arguments)
