@@ -25,7 +25,7 @@ def merge_yaml(commands, lkp_src):
             return yaml.load(f, Loader=yaml.FullLoader)
 
     content = {}
-    for cmd in commands:
+    for cmd in commands.reverse():
         if '=' in cmd:
             k, v = cmd.split('=')
             content = content | {k: v}
@@ -62,6 +62,17 @@ def get_result_stats(job_id, lkp_src):
     env = os.environ.copy()
     env['LKP_SRC'] = lkp_src
     subprocess.run(cmd.split(" "), env=env)
+
+def generate_lkp_initramfs(kernel_path, lkp_src):
+    path = pathlib.Path(kernel_path)
+    version = '-'.join(path.name.split('-')[1:])
+    modules_path = path.parent.parent.joinpath('lib', 'modules', version)
+
+    script_path = os.path.join(lkp_src, 'sbin', 'mci', 'gen-initramfs.sh')
+    cmd = f'{script_path} {modules_path}'
+    subprocess.run(cmd.split(" "))
+
+    return kernel_path.replace('vmlinuz', 'initramfs.lkp') + '.img'
 
 # FIXME: check if job valid
 # - stage name should not be duplicated

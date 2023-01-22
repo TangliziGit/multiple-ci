@@ -13,6 +13,7 @@ ipxe_scripts = {
     'centos': {
         '7': {
             'kernel': 'tftp://172.20.0.1/os/centos7/boot/vmlinuz-3.10.0-1160.el7.x86_64',
+            'initramfs': 'tftp://172.20.0.1/os/centos7/boot/initramfs.lkp-3.10.0-1160.el7.x86_64.img',
             'arguments': [
                 'user=lkp',
                 'job=/lkp/scheduled/job.yaml',
@@ -20,17 +21,15 @@ ipxe_scripts = {
                 'root=172.20.0.1:/srv/mci/os/centos7',
             ],
             'initrd': [
-                'tftp://172.20.0.1/os/centos7/boot/modules-3.10.0-1160.el7.x86_64.cgz',
-                'tftp://172.20.0.1/os/centos7/boot/initramfs.lkp-3.10.0-1160.el7.x86_64.img',
                 'tftp://172.20.0.1/initrd/lkp-x86_64.cgz'
             ],
         }
     }
 }
 
-def generate_ipxe_script(os, os_version, kernel, arguments, initrd):
+def generate_ipxe_script(os, os_version, kernel, initramfs, arguments, initrd):
     """
-    ipxe scripts generator, an output example is below:
+    Ipxe scripts generator. Below is an output example:
     #!ipxe
     kernel tftp://172.20.0.1/os/centos7/boot/vmlinuz-3.10.0-1160.el7.x86_64 {arguments} user=lkp job=/lkp/scheduled/job.yaml ip=dhcp rootovl ro root=172.20.0.1:/srv/mci/os/centos7 initrd=initramfs.lkp-3.10.0-1160.el7.x86_64.img initrd=modules-3.10.0-1160.el7.x86_64.cgz initrd=lkp-x86_64.cgz initrd=job.cgz
     initrd tftp://172.20.0.1/os/centos7/boot/modules-3.10.0-1160.el7.x86_64.cgz
@@ -44,14 +43,20 @@ def generate_ipxe_script(os, os_version, kernel, arguments, initrd):
         os = 'centos'
         os_version = '7'
 
+    default = ipxe_scripts[os][os_version]
     if arguments is None:
         arguments = []
     if initrd is None:
         initrd = []
     if kernel is None or kernel == '':
-        kernel = ipxe_scripts[os][os_version]['kernel']
+        kernel = default['kernel']
 
-    initrd += ipxe_scripts[os][os_version]['initrd']
+    initrd += default['initrd']
+    if initramfs is not None:
+        initrd.append(initramfs)
+    else:
+        initrd.append(default['initramfs'])
+
     arguments += ipxe_scripts[os][os_version]['arguments']
     for url in initrd:
         arguments.append(f'initrd={url.split("/")[-1]}')
@@ -111,10 +116,20 @@ class BootHandler(BaseHandler):
 
         arguments = [ f'packages={",".join(packages)}' ]
         initrd = [ f'tftp://172.20.0.1/job/{job["id"]}/job.cgz' ]
-        kernel = f"http://172.20.0.1:3080/{configure['kernel']}" if configure['kernel'] is not '' else None
-        script = generate_ipxe_script(job['os'], job['os_version'], kernel, arguments, initrd)
 
-        script = script.format(job_id=job['id'], arguments=arguments)
+        initramfs, kernel = None, None
+        initramfs_path = None
+        if configure['kernel'] is not '':
+            kernel = f"http://172.20.0.1:3080/{configure['kernel']}"
+            if configure['initramfs'] is '':
+                kernel_path = f'/srv/result/{configure["kernel"]}'
+                initramfs = jobs.generate_lkp_initramfs(kernel_path, self.lkp_src)
+                initramfs = initramfs.replace('/srv/result/', '')
+                initramfs_path = initramfs
+                configure['initramfs'] = initramfs
+            initramfs = f"http://172.20.0.1:3080/{configure['initramfs']}"
+
+        script = generate_ipxe_script(job['os'], job['os_version'], kernel, initramfs, arguments, initrd)
         logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
         self.finish(script)
 
@@ -127,15 +142,16 @@ class BootHandler(BaseHandler):
             'state': MachineState.busy.name,
         })
 
+
         while True:
             result = self.es.get(index='plan', id=job['plan'])
             plan = result['_source']
             stage_idx = next(idx for idx, stage in enumerate(plan['stages']) \
                              if stage['name'] == job['stage'])
             stage = plan['stages'][stage_idx]
-            if stage['state'] != StageState.waiting.name:
-                break
 
+            if initramfs_path is not None:
+                plan['config']['initramfs'] = initramfs_path
             stage['state'] = StageState.running.name
             try:
                 self.es.index(index='plan', id=plan['id'], document=plan)

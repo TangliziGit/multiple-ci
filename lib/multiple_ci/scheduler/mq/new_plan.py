@@ -46,6 +46,7 @@ def handle_new_plan(es, lkp_src, upstream_name):
             "stages": [],
             "config": {
                 "kernel": '',
+                "initramfs": '',
                 "packages": []
             }
         }

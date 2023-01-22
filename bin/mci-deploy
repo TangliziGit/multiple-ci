@@ -81,11 +81,13 @@ testbox-run() {
     storage_path="${MCI_HOME}/qemu/vda.qcow2"
     [[ -f "$storage_path" ]] || {
         echo ""
-        qemu-img create -f qcow2 "$storage_path" 15G
+        qemu-img create -f qcow2 "$storage_path" 35G
         sudo modprobe nbd
         sudo qemu-nbd -c /dev/nbd0 "$storage_path"
         cmd="$(printf "n\np\n1\n\n\nw\n")"
-        echo "$cmd" | sudo fdisk /dev/nbd1
+        echo "$cmd" | sudo fdisk /dev/nbd0
+        mkfs.ext4 /dev/nbd0p1
+        sudo qemu-nbd -d /dev/nbd0
     }
 
     ipxe_path="${MCI_HOME}/iso/ipxe.iso"
@@ -96,7 +98,7 @@ testbox-run() {
 
     qemu-system-x86_64 \
         -enable-kvm \
-        -m 2G \
+        -m 8G \
         -smp 8 \
         -cdrom $ipxe_path \
         -boot order=d \
@@ -147,7 +149,7 @@ os-run() {
 
     qemu-system-x86_64 \
         -enable-kvm \
-        -m 2G \
+        -m 8G \
         -smp 8 \
         -boot order=d \
         -drive file=$storage_path,format=qcow2 \
