@@ -25,7 +25,7 @@ def merge_yaml(commands, lkp_src):
             return yaml.load(f, Loader=yaml.FullLoader)
 
     content = {}
-    for cmd in commands.reverse():
+    for cmd in commands[::-1]:
         if '=' in cmd:
             k, v = cmd.split('=')
             content = content | {k: v}

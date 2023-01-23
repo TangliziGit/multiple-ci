@@ -28,5 +28,5 @@ class MonitorActionsHandler(tornado.websocket.WebSocketHandler):
                 logging.warning(f'no such command: command={command}, arguments={arguments}')
 
     def on_pong(self, data: bytes):
-        logging.info(f'heartbeat pong: mac={self.monitor.socket2mac.get(self, None)}')
+        logging.debug(f'heartbeat pong: mac={self.monitor.socket2mac.get(self, None)}')
         self.monitor.pong(self)
