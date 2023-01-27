@@ -78,9 +78,14 @@ start-depends() {
 
 # ====================== testbox ======================
 testbox-run() {
+    pid_path="$MCI_HOME/qemu/testbox.pid"
+    [[ -f "$pid_path" ]] && {
+        echo "testbox had been running: pid_file=$pid_path" >&2
+        exit 1
+    }
+
     storage_path="${MCI_HOME}/qemu/vda.qcow2"
     [[ -f "$storage_path" ]] || {
-        echo ""
         qemu-img create -f qcow2 "$storage_path" 35G
         sudo modprobe nbd
         sudo qemu-nbd -c /dev/nbd0 "$storage_path"
@@ -104,14 +109,28 @@ testbox-run() {
         -boot order=d \
         -drive file=$storage_path,format=qcow2 \
         -net nic,macaddr=52:54:00:00:00:01 \
-        -net bridge,br=br0
+        -net bridge,br=br0 &
+
+    echo "$!" > "$pid_path"
+}
+
+testbox-teardown() {
+    pid_path="$MCI_HOME/qemu/testbox.pid"
+    [[ -f "$pid_path" ]] || {
+        echo "no testbox is running" >&2
+        exit 1
+    }
+
+    kill "$(< $pid_path)"
+    rm "$pid_path"
 }
 
 testbox() {
     start-network
     case $2 in
-        "run")  testbox-run;;
-        "*")    unknown-command "$@";;
+        "run")      testbox-run;;
+        "teardown") testbox-teardown;;
+        "*")        unknown-command "$@";;
     esac
 }
 

@@ -110,7 +110,7 @@ class Scanner:
         for scanner in self.scanners:
             scanner.start()
 
-    def send(self, repo):
+    def send(self, repo, notify):
         """
         send a repo without any checker just for debug
         """
@@ -128,6 +128,7 @@ class Scanner:
         meta_path = os.path.join(directory, 'meta.yaml')
         with open(meta_path) as meta_file:
             meta = yaml.load(meta_file, Loader=yaml.FullLoader)
+            meta = meta | { "notify": notify }
 
             repo_path = os.path.join('/srv/git', repo)
             if os.path.exists(repo_path):
@@ -144,8 +145,7 @@ class Scanner:
                     "meta": get_commit_id(meta_repo_name),
                     "repo": get_commit_id(repo)
                 },
-                "repository": meta['repository'],
-                "PKGBUILD": meta.get("PKGBUILD", None)
+                "meta": meta,
             }
             logging.info(f'send new plan: plan_config={plan_config}')
             MQPublisher(self.mq_host, 'new-plan').publish_dict(plan_config)

@@ -17,6 +17,13 @@ def handle_new_plan(es, lkp_src, upstream_name):
           "commit": {
               "meta": "7d5ca10db5bc34ed939c9ad87a64279a20610b06",
               "repo": "7d5ca10db5bc34ed939c9ad87a64279a20610b06"
+          },
+          "meta": {
+              "repository": "",
+              "PKGBUILD": "",
+              "notify": {
+                "email": [ "xxx@yyy.zzz" ]
+              }
           }
         }
         """
@@ -41,8 +48,9 @@ def handle_new_plan(es, lkp_src, upstream_name):
                 "meta": arg['commit']['meta'],
                 "repo": arg['commit']['repo'],
             },
-            "repository": arg['repository'],
-            "PKGBUILD": arg.get('PKGBUILD', None),
+            "repository": arg['meta']['repository'],
+            "PKGBUILD": arg['meta'].get('PKGBUILD', None),
+            "notify": arg['meta'].get('notify', {}),
             "stages": [],
             "config": {
                 "kernel": '',
