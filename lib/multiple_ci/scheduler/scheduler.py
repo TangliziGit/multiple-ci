@@ -13,8 +13,8 @@ from multiple_ci.config import config
 def _handle_new_plan(host, es, lkp_src, upstream_name):
     MQConsumer(host, 'new-plan').consume(new_plan.handle_new_plan(es, lkp_src, upstream_name))
 
-def _handle_next_stage(host, es, lkp_src):
-    MQConsumer(host, 'next-stage').consume(next_stage.handle_next_stage(es, lkp_src))
+def _handle_next_stage(host, es, notification_publisher, lkp_src):
+    MQConsumer(host, 'next-stage').consume(next_stage.handle_next_stage(es, notification_publisher, lkp_src))
 
 class Scheduler:
     def __init__(self, port, mq_host, es_endpoint, lkp_src, mci_home, upstream_name):
@@ -22,9 +22,12 @@ class Scheduler:
         self.lkp_src = lkp_src
         self.mci_home = mci_home
         self.es = elasticsearch.Elasticsearch(es_endpoint)
-        self.mq_publisher = MQPublisher(mq_host, 'result')
-        self.new_plan_thread = threading.Thread(target=_handle_new_plan, args=[mq_host, self.es, self.lkp_src, upstream_name])
-        self.next_stage_thread = threading.Thread(target=_handle_next_stage, args=[mq_host, self.es, self.lkp_src])
+        self.result_publisher = MQPublisher(mq_host, 'result')
+        self.notification_publisher = MQPublisher(mq_host, 'notification')
+        self.new_plan_thread = threading.Thread(target=_handle_new_plan,
+                                                args=[mq_host, self.es, self.lkp_src, upstream_name])
+        self.next_stage_thread = threading.Thread(target=_handle_next_stage,
+                                                  args=[mq_host, self.es, self.notification_publisher, self.lkp_src])
         self.monitor = Monitor(self.es)
 
     def run(self):
@@ -45,7 +48,7 @@ class Scheduler:
             ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home,
                                                   es=self.es, monitor=self.monitor)),
 
-            ('/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es, mq_publisher=self.mq_publisher)),
+            ('/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es, mq_publisher=self.result_publisher)),
             ('/~lkp/cgi-bin/lkp-jobfile-append-var', lkp.JobVarHandler, dict(es=self.es)),
             ('/~lkp/cgi-bin/lkp-wtmp', lkp.TestBoxHandler, dict(es=self.es)),
             ('/~lkp/cgi-bin/lkp-plan-kernel', lkp.PlanKernelHandler, dict(es=self.es)),

@@ -13,10 +13,11 @@ from multiple_ci.analyzer.api import Apis
 
 # TODO: multi-thread
 class AnalyzeHandler:
-    def __init__(self, es, api, mq_publisher, lkp_src):
+    def __init__(self, es, api, next_stage_publisher, notification_publisher, lkp_src):
         self.es = es
         self.api = api
-        self.mq_publisher = mq_publisher
+        self.next_stage_publisher = next_stage_publisher
+        self.notification_publisher = notification_publisher
         self.lkp_src = lkp_src
         with open(os.path.join(self.lkp_src, 'etc', 'failure')) as f:
             self.failures = [p[:-1] for p in f.readlines()]
@@ -53,7 +54,7 @@ class AnalyzeHandler:
                           if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
             # trigger next stage only when es.index success
             if no_residual:
-                self.mq_publisher.publish_dict({
+                self.next_stage_publisher.publish_dict({
                     "plan": plan['id'],
                     "current_stage": stage['name']
                 })
@@ -64,7 +65,11 @@ class AnalyzeHandler:
             self.es.index(index='plan', id=plan['id'], document=plan,
                           if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
             self.api.cancel_stage(plan['id'], stage['name'])
-            # TODO: notify via email
+            self.notification_publisher.publish_dict({
+                'type': 'failure',
+                'plan': plan['id'],
+                'arguments': [ job['id'] ]
+            })
 
         while True:
             result = self.es.get(index='plan', id=job['plan'])
@@ -98,12 +103,16 @@ class AnalyzeHandler:
 class ResultAnalyzer:
     def __init__(self, mq_host, es_endpoint, scheduler_endpoint, lkp_src):
         self.mq_consumer = MQConsumer(mq_host, 'result')
-        self.mq_publisher = MQPublisher(mq_host, 'next-stage')
+        self.next_stage_publisher = MQPublisher(mq_host, 'next-stage')
+        self.notification_publisher = MQPublisher(mq_host, 'notification')
         self.es = elasticsearch.Elasticsearch(es_endpoint)
         self.api = Apis(scheduler_endpoint)
         self.lkp_src = lkp_src
 
     def run(self):
-        self.mq_consumer.consume(AnalyzeHandler(self.es, self.api, self.mq_publisher, self.lkp_src).mq_handler())
+        self.mq_consumer.consume(AnalyzeHandler(self.es, self.api,
+                                                self.next_stage_publisher,
+                                                self.notification_publisher,
+                                                self.lkp_src).mq_handler())
         # handler = AnalyzeHandler(self.lkp_src).handler()
         # handler('', '', '', b'903fa2fc-72c5-451d-bc87-67850f48cee2')

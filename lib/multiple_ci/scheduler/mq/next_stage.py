@@ -3,7 +3,7 @@ import json
 
 from multiple_ci.utils import jobs
 
-def handle_next_stage(es, lkp_src):
+def handle_next_stage(es, notification_publisher, lkp_src):
     def handle(ch, method, properties, arg):
         """
         :param arg: current stage argument, example {
@@ -20,7 +20,10 @@ def handle_next_stage(es, lkp_src):
         if stage_idx+1 >= len(stages):
             logging.debug(f'no residual stage: plan_id={plan["id"]}, '
                           f'current_stage={arg["current_stage"]}, stage_idx={stage_idx}')
-            # TODO: notify via email
+            notification_publisher.publish_dict({
+                'type': 'failure',
+                'plan': plan['id'],
+            })
         else:
             stage = stages[stage_idx+1]
             job_list = []
