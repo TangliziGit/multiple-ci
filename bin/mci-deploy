@@ -71,9 +71,12 @@ start-network() {
 
 start-depends() {
     docker start redis
-    docker start rabbitmq
     docker start es
     docker start webdav
+    [[ "$(docker ps -a | grep rabbitmq | awk '{print $7}')" == "Up" ]] || {
+        docker start rabbitmq
+        sleep 5s
+    }
 }
 
 # ====================== testbox ======================

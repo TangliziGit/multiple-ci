@@ -37,9 +37,19 @@ setup_suite() {
 }
 
 teardown_suite() {
+  echo "teardown servers, please wait..." >&3
   for pid_file in "$DIR"/pid/*; do
     pid="$(< "$pid_file")"
-    [[ -n "$(ps -p "$pid" -o comm= )" ]] && kill -15 "$pid"
+    # SIGTERM doesn’t kill the child processes.
+    # SIGKILL kills the child processes as well.
+    [[ -n "$(ps -p "$pid" -o comm= )" ]] && pkill -15 -P "$pid"
+  done
+
+  for pid_file in "$DIR"/pid/*; do
+    pid="$(< "$pid_file")"
+    while [[ -n "$(ps -p "$pid" -o comm= )" ]]; do
+        pkill -P "$pid"
+    done
     rm "$pid_file"
   done
 }

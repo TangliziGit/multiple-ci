@@ -2,7 +2,7 @@
 
 fifo="/srv/mci/notify.pipe"
 setup() {
-  mci-deploy clean all
+  # mci-deploy clean all
   [[ -p "$fifo" ]] && rm "$fifo"
   mkfifo "$fifo"
 }
