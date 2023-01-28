@@ -16,6 +16,7 @@ class FileSender:
         pass
 
     def send(self, target, argument):
+        logging.info(f"target={target}, arg={argument}")
         with open(target, 'w') as f:
             f.write(json.dumps(argument))
 

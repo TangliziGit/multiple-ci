@@ -21,7 +21,7 @@ def handle_next_stage(es, notification_publisher, lkp_src):
             logging.debug(f'no residual stage: plan_id={plan["id"]}, '
                           f'current_stage={arg["current_stage"]}, stage_idx={stage_idx}')
             notification_publisher.publish_dict({
-                'type': 'failure',
+                'type': 'success',
                 'plan': plan['id'],
             })
         else:

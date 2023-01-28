@@ -2,3 +2,5 @@ venv/
 lib/multiple_ci.egg-info
 .idea/
 **/__pycache__/
+test/log
+test/pid

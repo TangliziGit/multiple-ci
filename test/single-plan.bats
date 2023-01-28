@@ -1,10 +1,35 @@
 #!/usr/bin/env bats
 
-@test "test hello-world plan" {
-  fifo="/srv/mci/notify.pipe"
+fifo="/srv/mci/notify.pipe"
+setup() {
+  mci-deploy clean all
+  [[ -p "$fifo" ]] && rm "$fifo"
   mkfifo "$fifo"
-  run mci-scanner --debug hello-world --notify "file:$fifo"
-  read -r line < $fifo
-  echo "$line"
-  [ 1 -eq 1]
+}
+
+@test "single sleep plan" {
+  mci-scanner --debug sleep 2>/dev/null
+  run cat $fifo
+
+  result="$(echo "$output" | jq -r .type)"
+  echo "output: $output" >&3
+  [[ "$result" == "success" ]]
+}
+
+@test "single hello-world plan" {
+  mci-scanner --debug hello-world 2>/dev/null
+  run cat $fifo
+
+  result="$(echo "$output" | jq -r .type)"
+  echo "output: $output" >&3
+  [[ "$result" == "success" ]]
+}
+
+@test "single linux plan" {
+  mci-scanner --debug linux 2>/dev/null
+  run cat $fifo
+
+  result="$(echo "$output" | jq -r .type)"
+  echo "output: $output" >&3
+  [[ "$result" == "success" ]]
 }

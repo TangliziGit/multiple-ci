@@ -1,4 +1,5 @@
 import json
+import logging
 
 import elasticsearch
 
@@ -21,6 +22,7 @@ class NotificationHandler:
             }
             """
             arg = json.loads(arg.decode('utf-8'))
+            logging.info(f'send notifications: arg={arg}')
             plan = self.es.get(index='plan', id=arg['plan'])['_source']
 
             for sender_name, targets in plan['notify'].items():
