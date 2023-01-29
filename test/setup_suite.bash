@@ -29,8 +29,7 @@ setup_suite() {
   mci-deploy start
   mci-deploy clean all
 
-  # TODO: run more testboxes
-  background mci-deploy testbox run -nographic
+  mci-deploy testbox run -nographic -count 4
   background mci-scheduler
   background mci-analyzer
   background mci-notifier
@@ -38,6 +37,8 @@ setup_suite() {
 
 teardown_suite() {
   echo "teardown servers, please wait..." >&3
+  mci-deploy testbox teardown
+
   for pid_file in "$DIR"/pid/*; do
     pid="$(< "$pid_file")"
     # SIGTERM doesn’t kill the child processes.

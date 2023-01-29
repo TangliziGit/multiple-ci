@@ -65,8 +65,12 @@ start-network() {
     }
 
     # `dnsmasq` runs DNS server and TFTP for ipxe network procedure
-    sudo systemctl restart dnsmasq
-    sudo systemctl restart nfs-server
+    services=("dnsmasq" "nfs-server")
+    for service in "${services[@]}"; do
+        [[ "$(systemctl is-active "$service")" == "active" ]] || {
+            sudo systemctl restart "$service"
+        }
+    done
 }
 
 start-depends() {
@@ -81,63 +85,78 @@ start-depends() {
 
 # ====================== testbox ======================
 testbox-teardown() {
-    pid_path="$MCI_HOME/qemu/testbox.pid"
-    [[ -f "$pid_path" ]] || {
-        echo "no testbox is running" >&2
-        exit 1
-    }
-
-    pid="$(< $pid_path)"
-    if [[ -n "$(ps -p "$pid" -o comm=)" ]]; then
-        kill "$pid"
-    else
-        echo "testbox has already been killed: pid=$pid"
-    fi
-    rm "$pid_path"
+    for pid_path in "$MCI_HOME"/qemu/pid/*; do
+        [[ -f "$pid_path" ]] || continue
+        pid="$(< "$pid_path")"
+        while [[ -n "$(ps -p "$pid" -o comm=)" ]]; do
+            kill "$pid"
+        done
+        rm "$pid_path"
+    done
 }
 
 testbox-run() {
-    # pid_path="$MCI_HOME/qemu/testbox.pid"
-    # [[ -f "$pid_path" ]] && {
-    #     echo "testbox is running: pid_file=$pid_path"
-    #     testbox-teardown
-    # }
+    opts=()
+    count=1
+    for _ in $(seq "$#"); do
+        arg="$1"
+        shift
+        case "$arg" in
+            -count) count="$1"; shift 1;;
+            "") ;;
+            *) opts+=("$arg");;
+        esac
+    done
 
-    storage_path="${MCI_HOME}/qemu/vda.qcow2"
-    [[ -f "$storage_path" ]] || {
-        qemu-img create -f qcow2 "$storage_path" 35G
-        sudo modprobe nbd
-        sudo qemu-nbd -c /dev/nbd0 "$storage_path"
-        cmd="$(printf "n\np\n1\n\n\nw\n")"
-        echo "$cmd" | sudo fdisk /dev/nbd0
-        mkfs.ext4 /dev/nbd0p1
-        sudo qemu-nbd -d /dev/nbd0
-    }
+    for i in $(seq "$count"); do
+        pid_path="$MCI_HOME/qemu/pid/testbox$i.pid"
+        [[ -f "$pid_path" ]] && {
+            echo "testbox is running: pid_file=$pid_path"
+            exit 1
+        }
+    done
 
-    ipxe_path="${MCI_HOME}/iso/ipxe.iso"
-    [[ -f "$ipxe_path" ]] || {
-        echo "downloading: $ipxe_path"
-        wget "http://boot.ipxe.org/ipxe.iso" -o "$ipxe_path"
-    }
+    sudo modprobe nbd
+    for i in $(seq "$count"); do
+        storage_path="${MCI_HOME}/qemu/vda$i.qcow2"
+        [[ -f "$storage_path" ]] || {
+            qemu-img create -f qcow2 "$storage_path" 15G
+            sudo qemu-nbd -c /dev/nbd0 "$storage_path"
+            cmd="$(printf "n\np\n1\n\n\nw\n")"
+            echo "$cmd" | sudo fdisk /dev/nbd0
+            mkfs.ext4 /dev/nbd0p1
+            sudo qemu-nbd -d /dev/nbd0
+        }
 
-    qemu-system-x86_64 \
-        -enable-kvm \
-        -m 8G \
-        -smp 8 \
-        -cdrom $ipxe_path \
-        -boot order=d \
-        -drive file=$storage_path,format=qcow2 \
-        -net nic,macaddr=52:54:00:00:00:01 \
-        -net bridge,br=br0 "$@"
+        ipxe_path="${MCI_HOME}/iso/ipxe.iso"
+        [[ -f "$ipxe_path" ]] || {
+            echo "downloading: $ipxe_path"
+            wget "http://boot.ipxe.org/ipxe.iso" -o "$ipxe_path"
+        }
 
-    # echo "$!" > "$pid_path"
+        mac="$(printf "52:54:00:00:00:%02x" "$i")"
+        echo "opts: ${opts[*]} (${#opts[@]})"
+        qemu-system-x86_64 \
+            -enable-kvm \
+            -m 2G \
+            -smp 2 \
+            -cdrom $ipxe_path \
+            -boot order=d \
+            -drive file="$storage_path",format=qcow2 \
+            -net nic,macaddr="$mac" \
+            -net bridge,br=br0 "${opts[@]}" &
+
+        pid_path="$MCI_HOME/qemu/pid/testbox$i.pid"
+        echo "$!" > "$pid_path"
+    done
+
 }
 
 testbox() {
     start-network
     case $2 in
         "run")      testbox-run "${@:3}";;
-        # "teardown") testbox-teardown;;
+        "teardown") testbox-teardown;;
         "*")        unknown-command "$@";;
     esac
 }
@@ -304,6 +323,7 @@ install-directory() {
         mkdir $MCI_HOME/os
         mkdir $MCI_HOME/iso
         mkdir $MCI_HOME/qemu
+        mkdir $MCI_HOME/qemu/pid
         mkdir $MCI_HOME/job
         mkdir $MCI_HOME/initrd
     }
