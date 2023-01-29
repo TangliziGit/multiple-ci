@@ -81,6 +81,7 @@ class BootHandler(BaseHandler):
         self.monitor.pong(mac=mac)
 
         # get job id from arch queue
+        # FIXME: get job randomly to avoid data race
         result = self.es.search(index='job', body={
             'size': 1,
             'sort': { 'priority': { 'order': 'asc' } },
@@ -101,13 +102,25 @@ class BootHandler(BaseHandler):
                 'mac': mac,
                 'arch': arch,
                 'state': MachineState.idle.name,
+                'job': ''
             })
             return
 
         job = result['hits']['hits'][0]['_source']
 
         # generate job.cgz and store it into TFTP
-        jobs.create_job_package(job, self.mci_home, self.lkp_src)
+        job_created = jobs.create_job_package(job, self.mci_home, self.lkp_src)
+        if not job_created:
+            # assert: job.state == running | done
+            logging.info(f'data race occurred, need retry: mac={mac}, arch={arch}, job_id={job["id"]}')
+            self.finish(f'#!ipxe\nreboot')
+            self.es.index(index='machine', id=mac, document={
+                'mac': mac,
+                'arch': arch,
+                'state': MachineState.idle.name,
+                'job': ''
+            })
+            return
 
         # generate ipxe script
         plan = self.es.get(index='plan', id=job['plan'])['_source']
@@ -119,9 +132,9 @@ class BootHandler(BaseHandler):
 
         initramfs, kernel = None, None
         initramfs_path = None
-        if configure['kernel'] is not '':
+        if configure['kernel'] != '':
             kernel = f"http://172.20.0.1:3080/{configure['kernel']}"
-            if configure['initramfs'] is '':
+            if configure['initramfs'] == '':
                 kernel_path = f'/srv/result/{configure["kernel"]}'
                 initramfs = jobs.generate_lkp_initramfs(kernel_path, self.lkp_src)
                 initramfs = initramfs.replace('/srv/result/', '')
@@ -135,13 +148,14 @@ class BootHandler(BaseHandler):
 
         # update job and test machine state after successful request
         job['state'] = JobState.running.name
+        job['machine'] = mac
         self.es.index(index='job', id=job['id'], document=job)
         self.es.index(index='machine', id=mac, document={
             'mac': mac,
             'arch': arch,
             'state': MachineState.busy.name,
+            'job': job['id']
         })
-
 
         while True:
             result = self.es.get(index='plan', id=job['plan'])

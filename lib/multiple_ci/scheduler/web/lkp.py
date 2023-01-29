@@ -80,7 +80,7 @@ class TestBoxHandler(BaseHandler):
             'status': status,
             'mac': mac,
             'ip': ip,
-            'job_id': job_id
+            'job': job_id
         }
 
         self.es.index(index='machine', id=mac, document=machine)

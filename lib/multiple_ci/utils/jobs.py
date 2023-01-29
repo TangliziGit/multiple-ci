@@ -44,6 +44,8 @@ def create_job_package(job, mci_home, lkp_src):
     └── job.yaml
     """
     directory = os.path.join(mci_home, 'job', job['id'])
+    if os.path.exists(directory):
+        return False
     os.mkdir(directory)
     job_yaml = os.path.join(directory, 'job.yaml')
     with open(job_yaml, 'w') as f:
@@ -54,6 +56,7 @@ def create_job_package(job, mci_home, lkp_src):
     env = os.environ.copy()
     env['LKP_SRC'] = lkp_src
     subprocess.run(cmd.split(" "), env=env)
+    return True
 
 def get_result_stats(job_id, lkp_src):
     result_directory = os.path.join('/srv/result', job_id, 'result')
