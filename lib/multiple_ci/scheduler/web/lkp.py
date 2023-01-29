@@ -18,23 +18,36 @@ class PostRunHandler(BaseHandler):
         job_id = self.get_argument('job_id')
         logging.info(f'post run: job_file={job_file}, job_id={job_id}')
 
-        result = self.es.search(index='machine', query={'match': {'job_id': job_id}})['hits']['hits']
+        result = self.es.search(index='machine', query={
+            'bool': {
+                'must': [
+                    {'match': {'job': job_id}},
+                    {'match': {'state': MachineState.busy.name}},
+                ]
+            },
+        })['hits']['hits']
+
         if len(result) == 0:
-            self.err(http.HTTPStatus.NOT_FOUND, f'no such machine: job_id={job_id}')
+            self.err(http.HTTPStatus.NOT_FOUND, f'no such machine: job={job_id}')
             return
         if len(result) > 1:
+            logging.warning(f"machine job relation consistency check failed: machines={result}")
             self.err(http.HTTPStatus.INTERNAL_SERVER_ERROR,
-                     f'duplicated machine: job_id={job_id}, machines={result}')
+                     f'duplicated machine: job={job_id}, machines={result}')
             return
 
         job = self.es.get(index='job', id=job_id)['_source']
-        machine = result[0]['_source'] | {'state': MachineState.idle.name}
         job = job | {'state': JobState.done.name}
+        machine = result[0]['_source'] | {
+            'state': MachineState.idle.name,
+            'job': ''
+        }
 
         # FIXME: atomic update
         self.es.index(index='job', id=job_id, document=job)
         self.es.index(index='machine', id=machine['mac'], document=machine)
 
+        logging.info(f"job post run: job_id={job_id}")
         self.publisher.publish(job_id)
         self.ok()
 

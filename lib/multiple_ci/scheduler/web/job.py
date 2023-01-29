@@ -22,7 +22,6 @@ class JobHandler(JsonBaseHandler):
         self.ok(payload=self.es.get(index='job', id=job_id)['_source'])
 
     def put(self, job_id):
-        # TODO: change it into patch
         jobs = self.es.search(index='job', query={ 'match': {'id': job_id } })['hits']['hits']
         if len(jobs) == 0:
             self.err(http.HTTPStatus.NOT_FOUND, f'no such job: id={job_id}')

@@ -98,11 +98,15 @@ testbox-teardown() {
 testbox-run() {
     opts=()
     count=1
+    force=false
+    logdir="$MCI_HOME/qemu/log"
     for _ in $(seq "$#"); do
         arg="$1"
         shift
         case "$arg" in
             -count) count="$1"; shift 1;;
+            -logdir) logdir="$1"; shift 1;;
+            -force) force=true;;
             "") ;;
             *) opts+=("$arg");;
         esac
@@ -112,7 +116,11 @@ testbox-run() {
         pid_path="$MCI_HOME/qemu/pid/testbox$i.pid"
         [[ -f "$pid_path" ]] && {
             echo "testbox is running: pid_file=$pid_path"
-            exit 1
+            if [[ $force ]]; then
+                testbox-teardown
+            else
+                exit 1
+            fi
         }
     done
 
@@ -143,7 +151,7 @@ testbox-run() {
             -boot order=d \
             -drive file="$storage_path",format=qcow2 \
             -net nic,macaddr="$mac" \
-            -net bridge,br=br0 "${opts[@]}" &
+            -net bridge,br=br0 "${opts[@]}" > "$logdir/testbox$i.log" &
 
         pid_path="$MCI_HOME/qemu/pid/testbox$i.pid"
         echo "$!" > "$pid_path"
@@ -322,6 +330,7 @@ install-directory() {
         mkdir $MCI_HOME/os
         mkdir $MCI_HOME/iso
         mkdir $MCI_HOME/qemu
+        mkdir $MCI_HOME/qemu/log
         mkdir $MCI_HOME/qemu/pid
         mkdir $MCI_HOME/job
         mkdir $MCI_HOME/initrd

@@ -29,7 +29,7 @@ setup_suite() {
   mci-deploy start
   mci-deploy clean all
 
-  mci-deploy testbox run -nographic -count 4
+  mci-deploy testbox run -count 4 -force -logdir "$DIR/log" -nographic
   background mci-scheduler
   background mci-analyzer
   background mci-notifier

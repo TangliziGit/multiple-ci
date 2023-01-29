@@ -88,8 +88,6 @@ class Scanner:
                 meta = yaml.load(meta_file, Loader=yaml.FullLoader)
                 # TODO: validate meta.yaml
                 if 'repository' not in meta: continue
-
-                # TODO: default plan
                 if not os.path.exists(plan_path): continue
 
                 with open(plan_path) as plan_file:

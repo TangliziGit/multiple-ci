@@ -11,7 +11,6 @@ from multiple_ci.utils.mq import MQConsumer, MQPublisher
 from multiple_ci.analyzer.api import Apis
 
 
-# TODO: multi-thread
 class AnalyzeHandler:
     def __init__(self, es, api, next_stage_publisher, notification_publisher, lkp_src):
         self.es = es

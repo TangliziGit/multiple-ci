@@ -82,9 +82,9 @@ class Monitor:
                         job = job_resp['_source']
                         job['state'] = JobState.waiting.name
                         job['machine'] = ""
+                        shutil.rmtree(os.path.join(self.mci_home, 'job', job['id']))
                         self.es.index(index='job', id=job['id'], document=job,
                                       if_primary_term=job_resp['_primary_term'], if_seq_no=job_resp['_seq_no'])
-                        shutil.rmtree(os.path.join(self.mci_home, 'job', job['id']))
                 except elasticsearch.ConflictError as err:
                     logging.warning(f'retry to handle result since concurrency control failed: err={err}')
                 else:

@@ -29,6 +29,7 @@ class Scheduler:
         self.next_stage_thread = threading.Thread(target=_handle_next_stage,
                                                   args=[mq_host, self.es, self.notification_publisher, self.lkp_src])
         self.monitor = Monitor(self.es, mci_home)
+        self.boot_latch = threading.Lock()
 
     def run(self):
         self.new_plan_thread.start()
@@ -46,7 +47,7 @@ class Scheduler:
             ('/job/([0-9a-zA-Z\-]+)', job.JobHandler, dict(es=self.es)),
 
             ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home,
-                                                  es=self.es, monitor=self.monitor)),
+                                                  es=self.es, monitor=self.monitor, latch=self.boot_latch)),
 
             ('/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es, mq_publisher=self.result_publisher)),
             ('/~lkp/cgi-bin/lkp-jobfile-append-var', lkp.JobVarHandler, dict(es=self.es)),

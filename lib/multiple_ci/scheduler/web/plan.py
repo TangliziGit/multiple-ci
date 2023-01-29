@@ -57,8 +57,8 @@ class CancelStageHandler(JsonBaseHandler):
 
         for machine in machines:
             machine = machine['_source']
-            if 'job_id' in machine and machine['job_id'] in stage['jobs']:
+            if 'job' in machine and machine['job'] in stage['jobs']:
                 # send reboot command with job_id
                 # test machine will check if it runs the job whose id equals job_id
-                self.monitor.send(f'reboot({machine["job_id"]})')
+                self.monitor.send(f'reboot({machine["job"]})')
         self.ok()
