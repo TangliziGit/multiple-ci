@@ -4,6 +4,7 @@ import elasticsearch
 
 from multiple_ci.config import config
 from multiple_ci.model.stage_state import StageState
+from multiple_ci.model.plan_stage import PlanState
 from multiple_ci.scheduler.web.util import JsonBaseHandler
 
 
@@ -59,9 +60,11 @@ class CancelStageHandler(JsonBaseHandler):
                 stage = next(stage for stage in stages if stage['name'] == stage_name)
                 match stage['state']:
                     case StageState.waiting.name:
-                        stage['state'] = StageState.canceled
+                        stage['state'] = StageState.canceled.name
+                        plan['state'] = PlanState.canceled.name
                     case StageState.running.name:
-                        stage['state'] = StageState.canceled
+                        stage['state'] = StageState.canceled.name
+                        plan['state'] = PlanState.canceled.name
                         need_reboot = True
                     case StageState.failure.name:
                         need_reboot = True

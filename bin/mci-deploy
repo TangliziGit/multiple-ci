@@ -312,6 +312,12 @@ install-depends() {
             -e "xpack.security.enabled=false" \
             -e "xpack.security.http.ssl.enabled=false" -d \
             elasticsearch:8.5.3
+
+        sleep 5
+        curl -X PUT "localhost:9200/plan" -H 'Content-Type: application/json' \
+          -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
+        curl -X PUT "localhost:9200/job" -H 'Content-Type: application/json' \
+          -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
     }
 
     docker ps -a | grep -q webdav || {
@@ -468,13 +474,18 @@ clean-redis() {
 }
 
 clean-es() {
-  curl -s -X POST "localhost:9200/job/_delete_by_query?pretty" \
-    -H 'Content-Type: application/json' \
-    -d'{"query": {"match_all": {}}}' > /dev/null
+  curl -X DELETE 'localhost:9200/plan' > /dev/null
+  curl -X DELETE 'localhost:9200/job' > /dev/null
 
-  curl -s -X POST "localhost:9200/plan/_delete_by_query?pretty" \
-    -H 'Content-Type: application/json' \
-    -d'{"query": {"match_all": {}}}' > /dev/null
+  # Set index mappings to avoid `Field data is disabled on xxx in xxx` problem,
+  #   and to avoid tokenizing test repo name
+  # ref: https://www.elastic.co/guide/en/elasticsearch/reference/current/text.html#fielddata-mapping-param
+  # ref: https://blog.csdn.net/weixin_41127890/article/details/81948467
+  curl -X PUT "localhost:9200/plan" -H 'Content-Type: application/json' \
+    -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
+
+  curl -X PUT "localhost:9200/job" -H 'Content-Type: application/json' \
+    -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
 }
 
 clean-job() {

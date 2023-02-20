@@ -6,6 +6,7 @@ import re
 import elasticsearch
 
 from multiple_ci.utils import jobs
+from multiple_ci.model.plan_stage import PlanState
 from multiple_ci.model.stage_state import StageState
 from multiple_ci.utils.mq import MQConsumer, MQPublisher
 from multiple_ci.analyzer.api import Apis
@@ -61,6 +62,7 @@ class AnalyzeHandler:
         def failure():
             stage['residual'] -= 1
             stage['state'] = StageState.failure.name
+            plan['state'] = PlanState.failure.name
             self.es.index(index='plan', id=plan['id'], document=plan,
                           if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
             self.api.cancel_stage(plan['id'], stage['name'])

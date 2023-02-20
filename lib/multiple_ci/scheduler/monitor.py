@@ -17,6 +17,13 @@ class Monitor:
         self.es = es
         self.mci_home = mci_home
 
+    def init(self):
+        machines = self.es.search(index='machine', query={'match_all': {}})['hits']['hits']
+        machines = [m['_source'] for m in machines]
+        for machine in machines:
+            mac = machine['mac']
+            self.mac2timer[mac] = Timer(self.down_callback(mac))
+
     def close_socket(self, socket):
         self.mac2socket[self.socket2mac[socket]] = None
         del self.socket2mac[socket]

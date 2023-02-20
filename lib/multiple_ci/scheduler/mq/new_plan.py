@@ -8,6 +8,7 @@ import yaml
 
 from multiple_ci.utils import jobs
 from multiple_ci.utils import git
+from multiple_ci.model.plan_stage import PlanState
 
 def handle_new_plan(es, lkp_src, upstream_name):
     def handle(ch, method, properties, arg):
@@ -50,6 +51,7 @@ def handle_new_plan(es, lkp_src, upstream_name):
             "repository": arg['meta']['repository'],
             "PKGBUILD": arg['meta'].get('PKGBUILD', None),
             "notify": arg['meta'].get('notify', {}),
+            "state": PlanState.running.name,
             "stages": [],
             "config": {
                 "kernel": '',

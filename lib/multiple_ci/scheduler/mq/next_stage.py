@@ -3,6 +3,7 @@ import json
 import time
 
 from multiple_ci.utils import jobs
+from multiple_ci.model.plan_stage import PlanState
 
 def handle_next_stage(es, notification_publisher, lkp_src):
     def handle(ch, method, properties, arg):
@@ -22,6 +23,7 @@ def handle_next_stage(es, notification_publisher, lkp_src):
             logging.debug(f'no residual stage: plan_id={plan["id"]}, '
                           f'current_stage={arg["current_stage"]}, stage_idx={stage_idx}')
             plan['end_time'] = time.time()
+            plan['state'] = PlanState.success.name
             es.index(index='plan', id=plan['id'], document=plan)
 
             notification_publisher.publish_dict({

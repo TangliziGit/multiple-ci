@@ -4,7 +4,7 @@ import elasticsearch
 import tornado.ioloop
 import tornado.web
 
-from multiple_ci.scheduler.web import job, machine, boot, lkp, plan, monitor
+from multiple_ci.scheduler.web import job, machine, boot, lkp, plan, monitor, repo
 from multiple_ci.scheduler.mq import new_plan, next_stage
 from multiple_ci.utils.mq import MQConsumer, MQPublisher
 from multiple_ci.scheduler.monitor import Monitor
@@ -34,10 +34,12 @@ class Scheduler:
     def run(self):
         self.new_plan_thread.start()
         self.next_stage_thread.start()
+        self.monitor.init()
 
         uuid = '([0-9a-zA-Z\-]+)'
         mac = '([0-9a-zA-Z:]+)'
         stage = '([0-9a-zA-Z]+)'
+        repo_name = '([0-9a-zA-Z\-]+)'
         app = tornado.web.Application([
             (f'/machine', machine.MachineListHandler, dict(es=self.es)),
             (f'/machine/{mac}', machine.MachineHandler, dict(es=self.es)),
@@ -55,6 +57,10 @@ class Scheduler:
             (f'/job/{uuid}', job.JobHandler, dict(es=self.es)),
             (f'/api/job', job.JobListHandler, dict(es=self.es)),
             (f'/api/job/{uuid}', job.JobHandler, dict(es=self.es)),
+
+            (f'/api/repo', repo.RepoListHandler, dict(es=self.es)),
+            (f'/api/repo/{repo_name}', repo.RepoHandler, dict(es=self.es)),
+            (f'/api/repo/{repo_name}/plan', repo.PlanListByRepoHandler, dict(es=self.es)),
 
             (f'/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home,
                                                   es=self.es, monitor=self.monitor, latch=self.boot_latch)),

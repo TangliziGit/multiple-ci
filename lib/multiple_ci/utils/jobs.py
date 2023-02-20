@@ -93,6 +93,7 @@ def generate_job(command, plan, stage_name, lkp_src):
     job['os_mount'] = job.get('os_mount', 'nfs')
     job['os_version'] = job.get('os_version', '7')
 
+    job['name'] = plan['name']
     job['id'] = uuid.uuid4()
     job['plan'] = plan['id']
     job['stage'] = stage_name
