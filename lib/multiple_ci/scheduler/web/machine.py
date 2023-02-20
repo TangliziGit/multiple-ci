@@ -1,6 +1,7 @@
 import http
 import json
 
+from multiple_ci.config import config
 from multiple_ci.scheduler.web.util import JsonBaseHandler
 
 
@@ -10,7 +11,9 @@ class MachineListHandler(JsonBaseHandler):
         self.es = es
 
     def get(self):
-        jobs = self.es.search(index='machine', query={ 'match_all': {} })['hits']['hits']
+        jobs = self.es.search(index='machine',
+                              size=config.API_SEARCH_SIZE,
+                              query={ 'match_all': {} })['hits']['hits']
         jobs = [x['_source'] for x in jobs]
         self.ok(payload=jobs)
 

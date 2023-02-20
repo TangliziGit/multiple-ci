@@ -35,25 +35,35 @@ class Scheduler:
         self.new_plan_thread.start()
         self.next_stage_thread.start()
 
+        uuid = '([0-9a-zA-Z\-]+)'
+        mac = '([0-9a-zA-Z:]+)'
+        stage = '([0-9a-zA-Z]+)'
         app = tornado.web.Application([
-            ('/machine', machine.MachineListHandler, dict(es=self.es)),
-            ('/machine/([0-9a-zA-Z:]+)', machine.MachineHandler, dict(es=self.es)),
+            (f'/machine', machine.MachineListHandler, dict(es=self.es)),
+            (f'/machine/{mac}', machine.MachineHandler, dict(es=self.es)),
+            (f'/api/machine', machine.MachineListHandler, dict(es=self.es)),
 
-            ('/plan', plan.PlanListHandler, dict(es=self.es)),
-            ('/plan/([0-9a-zA-Z\-]+)/stage/([a-zA-Z0-9]+)/actions/cancel',
+            (f'/plan', plan.PlanListHandler, dict(es=self.es)),
+            (f'/plan/{uuid}/stage/{stage}/actions/cancel',
                 plan.CancelStageHandler, dict(es=self.es, monitor=self.monitor)),
+            (f'/api/plan', plan.PlanListHandler, dict(es=self.es)),
+            (f'/api/plan/{uuid}', plan.PlanHandler, dict(es=self.es)),
+            (f'/api/plan/{uuid}/stage/{stage}/job',
+                plan.JobListByPlanStageHandler, dict(es=self.es, monitor=self.monitor)),
 
-            ('/job', job.JobListHandler, dict(es=self.es)),
-            ('/job/([0-9a-zA-Z\-]+)', job.JobHandler, dict(es=self.es)),
+            (f'/job', job.JobListHandler, dict(es=self.es)),
+            (f'/job/{uuid}', job.JobHandler, dict(es=self.es)),
+            (f'/api/job', job.JobListHandler, dict(es=self.es)),
+            (f'/api/job/{uuid}', job.JobHandler, dict(es=self.es)),
 
-            ('/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home,
+            (f'/boot.ipxe', boot.BootHandler, dict(lkp_src=self.lkp_src, mci_home=self.mci_home,
                                                   es=self.es, monitor=self.monitor, latch=self.boot_latch)),
 
-            ('/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es, mq_publisher=self.result_publisher)),
-            ('/~lkp/cgi-bin/lkp-jobfile-append-var', lkp.JobVarHandler, dict(es=self.es)),
-            ('/~lkp/cgi-bin/lkp-wtmp', lkp.TestBoxHandler, dict(es=self.es)),
-            ('/~lkp/cgi-bin/lkp-plan-kernel', lkp.PlanKernelHandler, dict(es=self.es)),
-            ('/~lkp/cgi-bin/lkp-plan-append-packages', lkp.PlanPackagesHandler, dict(es=self.es)),
+            (f'/~lkp/cgi-bin/lkp-post-run', lkp.PostRunHandler, dict(es=self.es, mq_publisher=self.result_publisher)),
+            (f'/~lkp/cgi-bin/lkp-jobfile-append-var', lkp.JobVarHandler, dict(es=self.es)),
+            (f'/~lkp/cgi-bin/lkp-wtmp', lkp.TestBoxHandler, dict(es=self.es)),
+            (f'/~lkp/cgi-bin/lkp-plan-kernel', lkp.PlanKernelHandler, dict(es=self.es)),
+            (f'/~lkp/cgi-bin/lkp-plan-append-packages', lkp.PlanPackagesHandler, dict(es=self.es)),
 
             ('/actions', monitor.MonitorActionsHandler, dict(monitor=self.monitor))
         ], websocket_ping_interval=config.HEARTBEAT_INTERVAL_SEC)

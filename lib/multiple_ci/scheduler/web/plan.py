@@ -2,6 +2,7 @@ import logging
 
 import elasticsearch
 
+from multiple_ci.config import config
 from multiple_ci.model.stage_state import StageState
 from multiple_ci.scheduler.web.util import JsonBaseHandler
 
@@ -11,9 +12,36 @@ class PlanListHandler(JsonBaseHandler):
         self.es = es
 
     def get(self):
-        plans = self.es.search(index='plan', query={ 'match_all': {} })['hits']['hits']
+        plans = self.es.search(index='plan',
+                               size=config.API_SEARCH_SIZE,
+                               query={ 'match_all': {} })['hits']['hits']
         plans = [x['_source'] for x in plans]
         self.ok(payload=plans)
+
+class PlanHandler(JsonBaseHandler):
+    def initialize(self, es):
+        self.es = es
+
+    def get(self, id):
+        self.ok(payload=self.es.get(index='plan', id=id)['_source'])
+
+class JobListByPlanStageHandler(JsonBaseHandler):
+    def initialize(self, es, monitor):
+        self.es = es
+        self.monitor = monitor
+
+    def get(self, plan_id, stage_name):
+        plan = self.es.get(index='plan', id=plan_id)['_source']
+        stages = plan['stages']
+        stage = next(stage for stage in stages if stage['name'] == stage_name)
+        job_ids = stage['jobs']
+
+        results = self.es.search(index='job', size=config.API_SEARCH_SIZE, query={
+            'ids': { 'values': job_ids }
+        })['hits']['hits']
+
+        jobs = [result['_source'] for result in results]
+        self.ok(jobs)
 
 class CancelStageHandler(JsonBaseHandler):
     def initialize(self, es, monitor):
