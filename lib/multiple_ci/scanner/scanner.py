@@ -3,7 +3,6 @@ import os
 import time
 
 import yaml
-import subprocess
 import threading
 import queue
 
@@ -11,12 +10,12 @@ from multiple_ci.scanner.checker import CheckerSelector
 from multiple_ci.utils.mq import MQPublisher
 from multiple_ci.model.job_config import PlanConfig
 from multiple_ci.config import config
+from multiple_ci.utils import git
 
 
 def get_commit_id(repo_name):
-    repo_path = os.path.join("/srv/git", repo_name)
-    cmd = f'git -C {repo_path} log --pretty=format:"%H" -n 1'
-    commit_id = subprocess.check_output(cmd.split(" ")).decode('utf-8')
+    repo_path=os.path.join("/srv/git", repo_name)
+    commit_id = git.run('log --pretty=format:"%H" -n 1', repo_path=repo_path)
     return commit_id[1:-1]
 
 class RepoListenThread(threading.Thread):
@@ -61,7 +60,6 @@ class ScanThread(threading.Thread):
             self.repo_queue.put(job_config)
 
 
-
 class Scanner:
     def __init__(self, mq_host, scanner_count=config.SCANNER_COUNT, upstream_url=config.DEFAULT_UPSTREAM_URL):
         self.mq_host = mq_host
@@ -75,11 +73,9 @@ class Scanner:
         repo_name = self.upstream_url.split('/')[-1]
         upstream_path = os.path.join("/srv/git", repo_name)
         if os.path.exists(upstream_path):
-            cmd = f"git -C {upstream_path} pull --rebase"
-            subprocess.run(cmd.split(" "))
+            git.run('pull --rebase', repo_path=upstream_path)
         else:
-            cmd = f"git clone {self.upstream_url} {upstream_path}"
-            subprocess.run(cmd.split(" "))
+            git.run(f"clone {self.upstream_url} {upstream_path}")
 
         for directory, name in Scanner._repo_iter(upstream_path):
             meta_path = os.path.join(directory, 'meta.yaml')
@@ -115,12 +111,10 @@ class Scanner:
         repo_name = self.upstream_url.split('/')[-1]
         upstream_path = os.path.join("/srv/git", repo_name)
         if os.path.exists(upstream_path):
-            cmd = f"git -C {upstream_path} pull --rebase"
-            subprocess.run(cmd.split(" "))
+            git.run(f"pull --rebase", repo_path=upstream_path)
         else:
-            cmd = f"git clone {self.upstream_url} {upstream_path}"
-            subprocess.run(cmd.split(" "))
-            
+            git.run(f"clone {self.upstream_url} {upstream_path}")
+
         meta_repo_name = self.upstream_url.split('/')[-1]
         directory = os.path.join('/srv/git', meta_repo_name, repo[0], repo)
         meta_path = os.path.join(directory, 'meta.yaml')
@@ -130,11 +124,9 @@ class Scanner:
 
             repo_path = os.path.join('/srv/git', repo)
             if os.path.exists(repo_path):
-                cmd = f"git -C {repo} pull --rebase"
-                subprocess.run(cmd.split(" "))
+                git.run(f"pull --rebase", repo_path=repo_path)
             else:
-                cmd = f"git clone --depth 1 {meta['repository']} {repo_path}"
-                subprocess.run(cmd.split(" "))
+                git.run(f"clone --depth 1 {meta['repository']} {repo_path}")
 
             plan_config = {
                 "time": time.time_ns(),

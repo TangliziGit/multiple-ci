@@ -1,12 +1,13 @@
 import json
 import logging
 import os.path
-import subprocess
+import time
 import uuid
 
 import yaml
 
 from multiple_ci.utils import jobs
+from multiple_ci.utils import git
 
 def handle_new_plan(es, lkp_src, upstream_name):
     def handle(ch, method, properties, arg):
@@ -33,12 +34,10 @@ def handle_new_plan(es, lkp_src, upstream_name):
 
         # get plan.yaml with specific meta commit id
         upstream_path = os.path.join('/srv/git/', upstream_name)
-        cmd = f'git -C {upstream_path} reset --hard {arg["commit"]["meta"]}'
-        # FIXME: concurrency control & exception check & atomic rollback
-        subprocess.run(cmd.split(" "))
-        plan_path = os.path.join(upstream_path, arg['name'][0], arg['name'], 'plan.yaml')
-        with open(plan_path, 'r') as plan_file:
-            plan_content = yaml.load(plan_file, Loader=yaml.FullLoader)
+        with git.RepoTransaction(upstream_path, arg['commit']['meta']):
+            plan_path = os.path.join(upstream_path, arg['name'][0], arg['name'], 'plan.yaml')
+            with open(plan_path, 'r') as plan_file:
+                plan_content = yaml.load(plan_file, Loader=yaml.FullLoader)
 
         # generate the new plan
         plan = {
@@ -56,7 +55,9 @@ def handle_new_plan(es, lkp_src, upstream_name):
                 "kernel": '',
                 "initramfs": '',
                 "packages": []
-            }
+            },
+            "start_time": time.time(),
+            "end_time": -1,
         }
 
         for stage in plan_content['stages']:

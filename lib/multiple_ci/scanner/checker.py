@@ -1,9 +1,9 @@
 import logging
 import os
-import subprocess
 import time
 
 from multiple_ci.utils import caches
+from multiple_ci.utils import git
 from multiple_ci.config import config
 
 class KeepOutChecker:
@@ -38,18 +38,16 @@ class CommitCountChecker:
 
         prev = self.cache.get(key)
         if self.cache.exists(key) == 0 or prev is None:
-            cmd = f'git clone --depth 1 {job_config["url"]} {path}'
-            subprocess.run(cmd.split(" "))
-            cmd = f'git -C {path} rev-list --all --count'
-            count = int(subprocess.check_output(cmd.split(" ")))
+            # TODO: test git.run
+            git.run(f'clone --depth 1 {job_config["url"]} {path}')
+            count = int(git.run(f'rev-list --all --count', repo_path=path))
             self.cache.set(key, count)
             return True
 
         prev = int(prev.decode('utf-8'))
-        cmd = f'git -C {path} pull -q'
-        subprocess.run(cmd.split(" "))
-        cmd = f'git -C {path} rev-list --all --count'
-        now = int(subprocess.check_output(cmd.split(" ")))
+        # TODO: test git.run
+        git.run('pull -q', repo_path=path)
+        now = int(git.run(f'rev-list --all --count', repo_path=path))
 
         self.cache.set(key, now)
         return now - prev >= config.CHECKER_COMMIT_COUNT_THRESHOLD

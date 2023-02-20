@@ -12,6 +12,10 @@ LKP_SERVER = '172.20.0.1'
 HEARTBEAT_INTERVAL_SEC = 5
 MACHINE_DOWN_TIMER_SEC = 30
 
+API_SEARCH_SIZE = 1000
+GIT_TXN_LOCK_TIMEOUT_NS = 5 * 10 ** 9       # 5 seconds
+GIT_TXN_SPINLOCK_INTERVAL_SEC = 20 / 1000   # 20 ms
+
 # -------------------- default CLI config --------------------
 DEFAULT_UPSTREAM_URL = f"https://github.com/TangliziGit/multiple-ci-repos"
 DEFAULT_MULTIPLE_CI_HOME = '/srv/mci'

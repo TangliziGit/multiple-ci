@@ -1,5 +1,6 @@
 import logging
 import json
+import time
 
 from multiple_ci.utils import jobs
 
@@ -20,6 +21,9 @@ def handle_next_stage(es, notification_publisher, lkp_src):
         if stage_idx+1 >= len(stages):
             logging.debug(f'no residual stage: plan_id={plan["id"]}, '
                           f'current_stage={arg["current_stage"]}, stage_idx={stage_idx}')
+            plan['end_time'] = time.time()
+            es.index(index='plan', id=plan['id'], document=plan)
+
             notification_publisher.publish_dict({
                 'type': 'success',
                 'plan': plan['id'],
