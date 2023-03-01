@@ -58,7 +58,10 @@ unknown-command() {
 
 # ====================== start ======================
 start-network() {
-    ip link | grep -q "br0" || {
+    # if you need disguise your testbox ip address as the ip of the PC, run:
+    # iptables -t nat -A POSTROUTING -s 172.20.0.1/16 -j SNAT --to-source 172.29.7.157
+
+    ip link | awk '{print $2}' | grep -q "^br0" || {
         sudo ip link add br0 type bridge
         sudo ip addr add 172.20.0.1/16 dev br0
         sudo ip link set br0 up
@@ -88,10 +91,10 @@ testbox-teardown() {
     for pid_path in "$MCI_HOME"/qemu/pid/*; do
         [[ -f "$pid_path" ]] || continue
         pid="$(< "$pid_path")"
-        while [[ -n "$(ps -p "$pid" -o comm=)" ]]; do
-            kill "$pid"
+        while [[ -n "$(sudo ps -p "$pid" -o comm=)" ]]; do
+            sudo kill "$pid"
         done
-        rm "$pid_path"
+        rm -f "$pid_path"
     done
 }
 
@@ -143,7 +146,7 @@ testbox-run() {
         }
 
         mac="$(printf "52:54:00:00:00:%02x" "$i")"
-        qemu-system-x86_64 \
+        sudo qemu-system-x86_64 \
             -enable-kvm \
             -m 2G \
             -smp 2 \
@@ -182,7 +185,7 @@ os-build() {
         qemu-img create -f qcow2 "$storage_path" 10G
     }
 
-    qemu-system-x86_64 \
+    sudo qemu-system-x86_64 \
         -cdrom ${MCI_HOME}/iso/CentOS-7-x86_64-Minimal-2009.iso \
         -enable-kvm \
         -m 2G \
@@ -200,7 +203,7 @@ os-run() {
         exit 0
     }
 
-    qemu-system-x86_64 \
+    sudo qemu-system-x86_64 \
         -enable-kvm \
         -m 8G \
         -smp 8 \
@@ -280,20 +283,20 @@ install-venv() {
     }
 
     [[ -d "venv" ]] || {
-        python -m venv venv
+        python3 -m venv venv
         source "$here/../venv/bin/activate"
         pip install -e "$here/.."
     }
 }
 
 install-depends() {
-    docker ps -a | grep -q redis || {
+    docker ps -a --format "{{.Names}}" | grep -q ^redis$ || {
         docker run --name redis \
            -p 6379:6379 -d \
            redis
     }
 
-    docker ps -a | grep -q rabbitmq || {
+    docker ps -a --format "{{.Names}}" | grep -q ^rabbitmq$ || {
         docker run --name rabbitmq \
             -p 5672:5672 \
             -p 15672:15672 \
@@ -303,7 +306,7 @@ install-depends() {
             rabbitmq:3-management
     }
 
-    docker ps -a | grep -q es || {
+    docker ps -a --format "{{.Names}}" | grep -q ^es$ || {
         docker run --name es \
             -p 9200:9200 \
             -p 9300:9300 \
@@ -313,14 +316,15 @@ install-depends() {
             -e "xpack.security.http.ssl.enabled=false" -d \
             elasticsearch:8.5.3
 
-        sleep 5
-        curl -X PUT "localhost:9200/plan" -H 'Content-Type: application/json' \
+        echo "sleep 10 seconds to wait es instance initializing"
+        sleep 10
+        curl -s -X PUT "localhost:9200/plan" -H 'Content-Type: application/json' \
           -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
-        curl -X PUT "localhost:9200/job" -H 'Content-Type: application/json' \
+        curl -s -X PUT "localhost:9200/job" -H 'Content-Type: application/json' \
           -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
     }
 
-    docker ps -a | grep -q webdav || {
+    docker ps -a --format "{{.Names}}" | grep -q ^webdav$ || {
         docker run --name webdav \
             -p 3080:3080 \
             -v /etc/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf \
@@ -449,6 +453,10 @@ cat <<EOF | sudo tee /etc/exports > /dev/null
 ${MCI_HOME}/os/centos7    *(rw,sync,no_subtree_check,fsid=root,no_root_squash)
 EOF
 
+    [[ -d /etc/qemu ]] || {
+        sudo mkdir -p /etc/qemu
+    }
+
     grep -q "allow br0" /etc/qemu/bridge.conf || {
         echo "allow br0" | sudo tee -a /etc/qemu/bridge.conf
     }
@@ -474,18 +482,21 @@ clean-redis() {
 }
 
 clean-es() {
-  curl -X DELETE 'localhost:9200/plan' > /dev/null
-  curl -X DELETE 'localhost:9200/job' > /dev/null
+  curl -s -X DELETE 'localhost:9200/plan' > /dev/null
+  curl -s -X DELETE 'localhost:9200/job' > /dev/null
+  curl -s -X DELETE 'localhost:9200/machine' > /dev/null
 
   # Set index mappings to avoid `Field data is disabled on xxx in xxx` problem,
   #   and to avoid tokenizing test repo name
   # ref: https://www.elastic.co/guide/en/elasticsearch/reference/current/text.html#fielddata-mapping-param
   # ref: https://blog.csdn.net/weixin_41127890/article/details/81948467
-  curl -X PUT "localhost:9200/plan" -H 'Content-Type: application/json' \
+  curl -s -X PUT "localhost:9200/plan" -H 'Content-Type: application/json' \
     -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
 
-  curl -X PUT "localhost:9200/job" -H 'Content-Type: application/json' \
-    -d'{ "mappings": { "properties": { "name": { "type": "keyword" } }}}' > /dev/null
+  curl -s -X PUT "localhost:9200/job" -H 'Content-Type: application/json' \
+    -d'{ "mappings": { "properties": { "name": { "type": "keyword" }, "priority": { "type": "keyword" } }}}' > /dev/null
+
+  curl -s -X PUT "localhost:9200/machine"
 }
 
 clean-job() {
