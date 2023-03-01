@@ -10,24 +10,43 @@ from multiple_ci.model.machine_state import MachineState
 from multiple_ci.scheduler.web.util import BaseHandler
 
 ipxe_scripts = {
-    'centos': {
-        '7': {
-            'kernel': 'tftp://172.20.0.1/os/centos7/boot/vmlinuz-3.10.0-1160.el7.x86_64',
-            'initramfs': 'tftp://172.20.0.1/os/centos7/boot/initramfs.lkp-3.10.0-1160.el7.x86_64.img',
-            'arguments': [
-                'user=lkp',
-                'job=/lkp/scheduled/job.yaml',
-                'ip=dhcp rootovl ro',
-                'root=172.20.0.1:/srv/mci/os/centos7',
-            ],
-            'initrd': [
-                'tftp://172.20.0.1/initrd/lkp-x86_64.cgz'
-            ],
+    'x86_64': {
+        'centos': {
+            '7': {
+                'kernel': 'tftp://172.20.0.1/os/centos7/boot/vmlinuz-3.10.0-1160.el7.x86_64',
+                'initramfs': 'tftp://172.20.0.1/os/centos7/boot/initramfs.lkp-3.10.0-1160.el7.x86_64.img',
+                'arguments': [
+                    'user=lkp',
+                    'job=/lkp/scheduled/job.yaml',
+                    'ip=dhcp rootovl ro',
+                    'root=172.20.0.1:/srv/mci/os/centos7',
+                ],
+                'initrd': [
+                    'tftp://172.20.0.1/initrd/lkp-x86_64.cgz'
+                ],
+            }
         }
-    }
+    },
+    'aarch64': {
+        'centos': {
+            '7': {
+                'kernel': 'tftp://172.20.0.1/os/centos7-aarch64/boot/vmlinuz-4.18.0-348.20.1.el7.aarch64',
+                'initramfs': 'tftp://172.20.0.1/os/centos7-aarch64/boot/initramfs.lkp-4.18.0-348.20.1.el7.aarch64.img',
+                'arguments': [
+                    'user=lkp',
+                    'job=/lkp/scheduled/job.yaml',
+                    'ip=dhcp rootovl ro',
+                    'root=172.20.0.1:/srv/mci/os/centos7-aarch64',
+                ],
+                'initrd': [
+                    'tftp://172.20.0.1/initrd/lkp-x86_64.cgz'
+                ],
+            }
+        }
+    },
 }
 
-def generate_ipxe_script(os, os_version, kernel, initramfs, arguments, initrd):
+def generate_ipxe_script(arch, os, os_version, kernel, initramfs, arguments, initrd):
     """
     Ipxe scripts generator. Below is an output example:
     #!ipxe
@@ -38,12 +57,14 @@ def generate_ipxe_script(os, os_version, kernel, initramfs, arguments, initrd):
     initrd tftp://172.20.0.1/initrd/lkp-x86_64.cgz
     boot
     """
-    if os not in ipxe_scripts or os_version not in ipxe_scripts[os]:
+    if arch not in ipxe_scripts or \
+            os not in ipxe_scripts[arch] or\
+            os_version not in ipxe_scripts[arch][os]:
         logging.warning(f'this dist not support and use centos7 instead: os={os}, version={os_version}')
         os = 'centos'
         os_version = '7'
 
-    default = ipxe_scripts[os][os_version]
+    default = ipxe_scripts[arch][os][os_version]
     if arguments is None:
         arguments = []
     if initrd is None:
@@ -57,7 +78,7 @@ def generate_ipxe_script(os, os_version, kernel, initramfs, arguments, initrd):
     else:
         initrd.append(default['initramfs'])
 
-    arguments += ipxe_scripts[os][os_version]['arguments']
+    arguments += ipxe_scripts[arch][os][os_version]['arguments']
     for url in initrd:
         arguments.append(f'initrd={url.split("/")[-1]}')
 
@@ -81,6 +102,9 @@ class BootHandler(BaseHandler):
             arch = self.get_argument('arch')
             mac = self.get_argument('mac')
             self.monitor.pong(mac=mac)
+
+            if arch == 'arm64':
+                arch = 'aarch64'
 
             # get job id from arch queue
             # FIXME: get job randomly to avoid data race
@@ -144,7 +168,7 @@ class BootHandler(BaseHandler):
                     configure['initramfs'] = initramfs
                 initramfs = f"http://172.20.0.1:3080/{configure['initramfs']}"
 
-            script = generate_ipxe_script(job['os'], job['os_version'], kernel, initramfs, arguments, initrd)
+            script = generate_ipxe_script(job['os_arch'], job['os'], job['os_version'], kernel, initramfs, arguments, initrd)
             logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
             self.finish(script)
 

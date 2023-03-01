@@ -120,7 +120,16 @@ class Scanner:
         meta_path = os.path.join(directory, 'meta.yaml')
         with open(meta_path) as meta_file:
             meta = yaml.load(meta_file, Loader=yaml.FullLoader)
-            meta = meta | { "notify": notify }
+            if 'notify' not in meta:
+                meta['notify'] = {}
+            for notify_method in meta['notify']:
+                targets = meta['notify'][notify_method]
+                targets = targets + notify.get(notify_method, [])
+                targets = list(set(targets))
+                meta['notify'][notify_method] = targets
+            for notify_method in notify:
+                if notify_method in meta['notify']: continue
+                meta['notify'][notify_method] = notify[notify_method]
 
             repo_path = os.path.join('/srv/git', repo)
             if os.path.exists(repo_path):

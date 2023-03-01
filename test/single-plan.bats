@@ -33,3 +33,12 @@ setup() {
   echo "output: $output" >&3
   [[ "$result" == "success" ]]
 }
+
+@test "single test-email-notify" {
+  mci-scanner --debug test-email-notify 2>/dev/null
+  run cat $fifo
+
+  result="$(echo "$output" | jq -r .type)"
+  echo "output: $output" >&3
+  [[ "$result" == "success" ]]
+}

@@ -96,6 +96,7 @@ class Monitor:
                     logging.warning(f'retry to handle result since concurrency control failed: err={err}')
                 else:
                     logging.debug(f'result dealt successfully')
+                    logging.info(f'interrupted job has been restarted')
                     break
         return callback
 
