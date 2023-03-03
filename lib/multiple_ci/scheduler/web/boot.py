@@ -104,6 +104,7 @@ class BootHandler(BaseHandler):
             mac = self.get_argument('mac')
             self.monitor.pong(mac=mac)
 
+            logging.info(f"testbox request job: arch={arch}, mac={mac}")
             if arch == 'arm64':
                 arch = 'aarch64'
 

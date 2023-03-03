@@ -175,7 +175,7 @@ testbox-run() {
         esac
     done
 
-    count="$(("$count_x86_64" + "$count_aarch64"))"
+    count=`expr $count_x86_64 + $count_aarch64`
     [[ $count -eq 0 ]] && {
       echo "no textbox will be started up: count == 0"
       exit 0
@@ -458,7 +458,7 @@ EOF
 
 cat <<EOF | sudo tee ${MCI_HOME}/os/boot.ipxe > /dev/null
 #!ipxe
-cpuid --ext 29 && set arch x86_64 || set arch i386
+cpuid --ext 29 && set buildarch x86_64 || echo "cpuid failed"
 chain http://172.20.0.1:3000/boot.ipxe?arch=\${arch}&mac=\${net0/mac} || sleep 10 && reboot
 EOF
 
