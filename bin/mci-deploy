@@ -87,6 +87,51 @@ start-depends() {
 }
 
 # ====================== testbox ======================
+testbox-run-x86_64() {
+    id="$1"
+    ipxe_path="${MCI_HOME}/iso/ipxe.iso"
+    [[ -f "$ipxe_path" ]] || {
+        echo "downloading: $ipxe_path"
+        wget "http://boot.ipxe.org/ipxe.iso" -o "$ipxe_path"
+    }
+
+    mac="$(printf "52:54:00:00:00:%02x" "$id")"
+    sudo qemu-system-x86_64 \
+        -enable-kvm \
+        -m 2G \
+        -smp 2 \
+        -cdrom $ipxe_path \
+        -boot order=d \
+        -drive file="$storage_path",format=qcow2 \
+        -net nic,macaddr="$mac" \
+        -net bridge,br=br0 \
+        "${opts[@]}" >"$logdir/testbox$id.log" &
+    echo "$!"
+}
+
+testbox-run-aarch64() {
+    id="$1"
+    qemu_efi_path="$MCI_HOME/qemu/QEMU_EFI.fd"
+    ipxe_rom_path="$MCI_HOME/qemu/ipxe.efirom"
+    mac="$(printf "52:54:00:00:00:%02x" "$id")"
+
+    sudo qemu-system-aarch64 \
+        -cpu cortex-a76 \
+        -smp 2 \
+        -M virt \
+        -m 2G \
+        -serial stdio \
+        -nographic \
+        -monitor null \
+        -bios "$qemu_efi_path" \
+        -net nic,macaddr="$mac" \
+        -net bridge,br="br0" \
+        -drive file="$storage_path",format=qcow2 \
+        -device virtio-net,romfile="$ipxe_rom_path" \
+        "${opts[@]}" >"$logdir/testbox$id.log" &
+    echo "$!"
+}
+
 testbox-teardown() {
     for pid_path in "$MCI_HOME"/qemu/pid/*; do
         [[ -f "$pid_path" ]] || continue
@@ -100,20 +145,28 @@ testbox-teardown() {
 
 testbox-run() {
     opts=()
-    count=1
+    count_x86_64=0
+    count_aarch64=0
     force=false
     logdir="$MCI_HOME/qemu/log"
     for _ in $(seq "$#"); do
         arg="$1"
         shift
         case "$arg" in
-            -count) count="$1"; shift 1;;
+            -count) count_x86_64="$1"; shift 1;;
+            -count_aarch64) count_aarch64="$1"; shift 1;;
             -logdir) logdir="$1"; shift 1;;
             -force) force=true;;
             "") ;;
             *) opts+=("$arg");;
         esac
     done
+
+    count="$(("$count_x86_64" + "$count_aarch64"))"
+    [[ $count -eq 0 ]] && {
+      echo "no textbox will be started up: count == 0"
+      exit 0
+    }
 
     for i in $(seq "$count"); do
         pid_path="$MCI_HOME/qemu/pid/testbox$i.pid"
@@ -139,25 +192,13 @@ testbox-run() {
             sudo qemu-nbd -d /dev/nbd0
         }
 
-        ipxe_path="${MCI_HOME}/iso/ipxe.iso"
-        [[ -f "$ipxe_path" ]] || {
-            echo "downloading: $ipxe_path"
-            wget "http://boot.ipxe.org/ipxe.iso" -o "$ipxe_path"
-        }
-
-        mac="$(printf "52:54:00:00:00:%02x" "$i")"
-        sudo qemu-system-x86_64 \
-            -enable-kvm \
-            -m 2G \
-            -smp 2 \
-            -cdrom $ipxe_path \
-            -boot order=d \
-            -drive file="$storage_path",format=qcow2 \
-            -net nic,macaddr="$mac" \
-            -net bridge,br=br0 "${opts[@]}" > "$logdir/testbox$i.log" &
-
         pid_path="$MCI_HOME/qemu/pid/testbox$i.pid"
-        echo "$!" > "$pid_path"
+        if [[ $i -le $count_x86_64 ]]; then
+            pid="$(testbox-run-x86_64 "$i")"
+        else
+            pid="$(testbox-run-aarch64 "$i")"
+        fi
+        echo "$pid" > "$pid_path"
     done
 
 }
@@ -450,8 +491,8 @@ tftp-root=${MCI_HOME}
 EOF
 
 cat <<EOF | sudo tee /etc/exports > /dev/null
-${MCI_HOME}/os/centos7    *(rw,sync,no_subtree_check,fsid=root,no_root_squash)
-${MCI_HOME}/os/centos7-aarch64    *(rw,sync,no_subtree_check,fsid=root,no_root_squash)
+${MCI_HOME}/os/centos7    *(rw,sync,no_subtree_check,no_root_squash)
+${MCI_HOME}/os/debian11-aarch64    *(rw,sync,no_subtree_check,no_root_squash)
 EOF
 
     [[ -d /etc/qemu ]] || {

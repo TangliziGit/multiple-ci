@@ -22,7 +22,10 @@ class Monitor:
         machines = [m['_source'] for m in machines]
         for machine in machines:
             mac = machine['mac']
-            self.mac2timer[mac] = Timer(self.down_callback(mac))
+            arch = machine['arch']
+            timeout = config.X86_64_MACHINE_DOWN_TIMER_SEC if arch == 'x86_64' else \
+                config.AARCH64_MACHINE_DOWN_TIMER_SEC
+            self.mac2timer[mac] = Timer(self.down_callback(mac), timeout)
 
     def close_socket(self, socket):
         self.mac2socket[self.socket2mac[socket]] = None
@@ -103,7 +106,7 @@ class Monitor:
 
 # TODO: one thread for one machine. does it need be optimized?
 class Timer:
-    def __init__(self, callback, interval=config.MACHINE_DOWN_TIMER_SEC):
+    def __init__(self, callback, interval=config.X86_64_MACHINE_DOWN_TIMER_SEC):
         self.function = callback
         self.interval = interval
         self.timer = threading.Timer(interval, callback)

@@ -28,15 +28,16 @@ ipxe_scripts = {
         }
     },
     'aarch64': {
-        'centos': {
-            '7': {
-                'kernel': 'tftp://172.20.0.1/os/centos7-aarch64/boot/vmlinuz-4.18.0-348.20.1.el7.aarch64',
-                'initramfs': 'tftp://172.20.0.1/os/centos7-aarch64/boot/initramfs.lkp-4.18.0-348.20.1.el7.aarch64.img',
+        'debian': {
+            '11': {
+                'kernel': 'tftp://172.20.0.1/os/debian11-aarch64/boot/vmlinuz-5.10.0-21-arm64',
+                'initramfs': 'tftp://172.20.0.1/os/debian11-aarch64/boot/initramfs.lkp-5.10.0-21-arm64.2.img',
                 'arguments': [
                     'user=lkp',
                     'job=/lkp/scheduled/job.yaml',
                     'ip=dhcp rootovl ro',
-                    'root=172.20.0.1:/srv/mci/os/centos7-aarch64',
+                    'root=172.20.0.1:/srv/mci/os/debian11-aarch64',
+                    # 'rd.shell rd.debug log_buf_len=1M rd.break=cleanup',
                 ],
                 'initrd': [
                     'tftp://172.20.0.1/initrd/lkp-x86_64.cgz'
