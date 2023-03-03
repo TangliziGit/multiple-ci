@@ -16,6 +16,10 @@ start() {
 }
 
 background() {
+  pgrep "$1" && {
+    echo "[$1] has been running"
+  }
+
   start "$@" &
   echo "$!" > "$DIR/pid/$1.pid"
   disown
@@ -29,7 +33,7 @@ setup_suite() {
   mci-deploy start
   mci-deploy clean all
 
-  mci-deploy testbox run -count 4 -force -logdir "$DIR/log" -nographic
+  mci-deploy testbox run -count 4 -logdir "$DIR/log" -nographic -force
   background mci-scheduler
   background mci-analyzer
   background mci-notifier

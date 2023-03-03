@@ -132,12 +132,25 @@ testbox-run-aarch64() {
     echo "$!"
 }
 
+rkill() {
+  local pid="$1"
+  child="$(pgrep -P $pid)"
+  [[ -z "$child" ]] || {
+    local p
+    for p in "${child[@]}"; do
+      rkill "$p"
+      sudo kill "$p"
+    done
+  }
+}
+
 testbox-teardown() {
     for pid_path in "$MCI_HOME"/qemu/pid/*; do
         [[ -f "$pid_path" ]] || continue
         pid="$(< "$pid_path")"
         while [[ -n "$(sudo ps -p "$pid" -o comm=)" ]]; do
-            sudo kill "$pid"
+            # sudo pkill -g "$pgid"
+            rkill "$pid"
         done
         rm -f "$pid_path"
     done
