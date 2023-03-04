@@ -44,6 +44,9 @@ class Monitor:
     def bind(self, socket, mac):
         self.socket2mac[socket] = mac
         self.mac2socket[mac] = socket
+        machine = self.es.get(index='machine', id=mac)['_source']
+        machine['state'] = MachineState.busy.name
+        self.es.index(index='machine', id=mac, document=machine)
 
     def pong(self, socket=None, mac=None):
         if socket is not None:

@@ -22,6 +22,7 @@ class MonitorActionsHandler(tornado.websocket.WebSocketHandler):
         match command:
             case 'bind':
                 self.monitor.bind(self, arguments[0])
+                self.monitor.pong(self)
             case 'log':
                 logging.info(f'log message received: mac={self.monitor.socket2mac[self]}, msg={arguments}')
             case _:
