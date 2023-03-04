@@ -120,15 +120,14 @@ testbox-run-aarch64() {
         -smp 2 \
         -M virt \
         -m 2G \
-        -serial stdio \
-        -nographic \
-        -monitor null \
         -bios "$qemu_efi_path" \
         -net nic,macaddr="$mac" \
         -net bridge,br="br0" \
         -drive file="$storage_path",format=qcow2 \
         -device virtio-net,romfile="$ipxe_rom_path" \
         "${opts[@]}" >"$logdir/testbox$id.log" &
+        # -serial stdio \
+        # -monitor null \
     echo "$!"
 }
 
