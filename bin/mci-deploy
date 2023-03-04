@@ -550,7 +550,7 @@ clean-es() {
   curl -s -X PUT "localhost:9200/job" -H 'Content-Type: application/json' \
     -d'{ "mappings": { "properties": { "name": { "type": "keyword" }, "priority": { "type": "keyword" } }}}' > /dev/null
 
-  curl -s -X PUT "localhost:9200/machine"
+  curl -s -X PUT "localhost:9200/machine" > /dev/null
 }
 
 clean-job() {
@@ -558,11 +558,19 @@ clean-job() {
   sudo rm -rf /srv/result/*
 }
 
+clean-mq() {
+  queues=("new-plan" "next-stage" "notification" "result" "bisect")
+  for queue in "${queues[@]}"; do
+    curl -X DELETE -u root:123456 "http://localhost:15672/api/queues/%2F/$queue/contents"
+  done
+}
+
 clean() {
   case $2 in
   "redis")  clean-redis;;
   "es")     clean-es;;
   "job")    clean-job;;
+  "mq")     clean-mq;;
   "all")
     clean-redis
     clean-es
