@@ -21,7 +21,7 @@ ipxe_scripts = {
                     'ip=dhcp rootovl ro',
                     'root=172.20.0.1:/srv/mci/os/centos7',
                     'selinux=0',
-                    'rd.shell rd.debug log_buf_len=1M',
+                    # 'rd.shell rd.debug log_buf_len=1M',
                     # 'rd.break=cleanup',
                 ],
                 'initrd': [
@@ -41,7 +41,7 @@ ipxe_scripts = {
                     'ip=dhcp rootovl ro',
                     'selinux=0',
                     'root=172.20.0.1:/srv/mci/os/debian11-aarch64',
-                    'rd.shell rd.debug log_buf_len=1M',
+                    # 'rd.shell rd.debug log_buf_len=1M',
                     # 'rd.break=cleanup',
                 ],
                 'initrd': [

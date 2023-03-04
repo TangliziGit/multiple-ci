@@ -22,14 +22,8 @@ class AnalyzeHandler:
         with open(os.path.join(self.lkp_src, 'etc', 'failure')) as f:
             self.failures = [p[:-1] for p in f.readlines()]
 
-    def is_failure(self, job):
-        stats_path = os.path.join('/srv/result', job['id'], 'result', 'stats.json')
-        if not os.path.exists(stats_path):
-            # if stats.json was not generated then the job was failed
-            return True
-
-        with open(stats_path) as f:
-            stats = json.load(f)
+    def is_failure_on_stats(self, stats):
+        if stats is None: return True
 
         def matches(key):
             for pattern in self.failures:
@@ -41,6 +35,28 @@ class AnalyzeHandler:
             if matches(k):
                 return True
         return False
+
+    def is_failure_on_parameters(self, job, stats):
+        for key in job.keys():
+            if 'check:' not in key: continue
+            target_value = job[key]
+            stats_key = key[len('check:'):]
+            stats_value = stats[stats_key]
+
+            match target_value[0]:
+                case '<':
+                    result = stats_value < float(target_value[1:])
+                case '>':
+                    result = stats_value < float(target_value[1:])
+                case _:
+                    result = stats_value < float(target_value[1:])
+            if result is False:
+                return True
+        return False
+
+    def is_failure(self, job):
+        stats = jobs.read_job_stats(job)
+        return self.is_failure_on_stats(stats) or self.is_failure_on_parameters(job, stats)
 
     def handle_result(self, job, is_failure):
         logging.info(f'job result analysis: job_id={job["id"]}, is_failure={is_failure}')

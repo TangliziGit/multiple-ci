@@ -1,3 +1,4 @@
+import json
 import uuid
 import logging
 import os.path
@@ -29,6 +30,12 @@ def merge_yaml(commands, lkp_src):
         if '=' in cmd:
             k, v = cmd.split('=')
             content = content | {k: v}
+        elif '<' in cmd:
+            k, v = cmd.split('<')
+            content = content | {k: f"<{v}"}
+        elif '>' in cmd:
+            k, v = cmd.split('>')
+            content = content | {k: f">{v}"}
         elif '.yaml' in cmd or '.yml' in cmd:
             content = content | read_yaml(cmd)
         else:
@@ -106,3 +113,13 @@ def generate_job(command, plan, stage_name, lkp_src):
     job['RESULT_ROOT'] = '/result'
     job['LKP_SERVER'] = config.LKP_SERVER
     return job
+
+def read_job_stats(job):
+    stats_path = os.path.join('/srv/result', job['id'], 'result', 'stats.json')
+    if not os.path.exists(stats_path):
+        # if stats.json was not generated then the job was failed
+        return None
+
+    with open(stats_path) as f:
+        stats = json.load(f)
+    return stats
