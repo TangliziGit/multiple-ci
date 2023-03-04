@@ -504,7 +504,7 @@ tftp-root=${MCI_HOME}
 EOF
 
 cat <<EOF | sudo tee /etc/exports > /dev/null
-${MCI_HOME}/os/centos7    *(rw,sync,no_subtree_check,no_root_squash)
+${MCI_HOME}/os/centos7    *(rw,sync,no_subtree_check,no_root_squash,fsid=root)
 ${MCI_HOME}/os/debian11-aarch64    *(rw,sync,no_subtree_check,no_root_squash)
 EOF
 
