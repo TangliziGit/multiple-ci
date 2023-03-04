@@ -34,7 +34,7 @@ ipxe_scripts = {
         'debian': {
             '11': {
                 'kernel': 'tftp://172.20.0.1/os/debian11-aarch64/boot/vmlinuz-5.10.0-21-arm64',
-                'initramfs': 'tftp://172.20.0.1/os/debian11-aarch64/boot/initramfs.lkp-5.10.0-21-arm64.2.img',
+                'initramfs': 'tftp://172.20.0.1/os/debian11-aarch64/boot/initramfs.lkp-5.10.0-21-arm64.img',
                 'arguments': [
                     'user=lkp',
                     'job=/lkp/scheduled/job.yaml',
