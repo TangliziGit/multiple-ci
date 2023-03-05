@@ -23,18 +23,20 @@ class AnalyzeHandler:
             self.failures = [p[:-1] for p in f.readlines()]
 
     def is_failure_on_stats(self, stats):
-        if stats is None: return True
+        if stats is None:
+            return True, 'stats file not generated'
 
         def matches(key):
             for pattern in self.failures:
                 if re.match(pattern, key) is not None:
-                    return True
-            return False
+                    return True, f'stat matches failure pattern: key={key}, pattern={pattern}'
+            return False, ''
 
         for k in stats.keys():
-            if matches(k):
-                return True
-        return False
+            result = matches(k)
+            if result[0]:
+                return True, result[1]
+        return False, ''
 
     def is_failure_on_parameters(self, job, stats):
         for key in job.keys():
@@ -45,21 +47,27 @@ class AnalyzeHandler:
 
             match target_value[0]:
                 case '<':
-                    result = stats_value < float(target_value[1:])
+                    result = float(stats_value) < float(target_value[1:])
                 case '>':
-                    result = stats_value < float(target_value[1:])
+                    result = float(stats_value) > float(target_value[1:])
                 case _:
-                    result = stats_value < float(target_value[1:])
+                    result = float(stats_value) == float(target_value[1:])
             if result is False:
-                return True
-        return False
+                return True, f'job parameter compare failed: key={key}, target_value={target_value},' \
+                             f' stats_key={stats_key}, stats_value={stats_value}'
+        return False, ''
 
     def is_failure(self, job):
         stats = jobs.read_job_stats(job)
-        return self.is_failure_on_stats(stats) or self.is_failure_on_parameters(job, stats)
+        is_failure, reason = self.is_failure_on_stats(stats)
+        if is_failure:
+            return is_failure, reason
 
-    def handle_result(self, job, is_failure):
-        logging.info(f'job result analysis: job_id={job["id"]}, is_failure={is_failure}')
+        return self.is_failure_on_parameters(job, stats)
+
+    def handle_result(self, job, is_failure, failure_reason):
+        logging.info(f'job result analysis: job_id={job["id"]},'
+                     f' is_failure={is_failure}, failure_reason={failure_reason}')
 
         def success():
             stage['residual'] -= 1
@@ -103,6 +111,7 @@ class AnalyzeHandler:
                 logging.debug(f'result dealt successfully')
                 break
         job['success'] = not is_failure
+        job['failure_reason'] = failure_reason
         self.es.index(index='job', id=job['id'], document=job)
 
     def mq_handler(self):
@@ -112,7 +121,8 @@ class AnalyzeHandler:
 
             jobs.get_result_stats(job_id, self.lkp_src)
             job = self.es.get(index='job', id=job_id)['_source']
-            self.handle_result(job, self.is_failure(job))
+            is_failure, reason = self.is_failure(job)
+            self.handle_result(job, is_failure, reason)
 
         return handle
 
