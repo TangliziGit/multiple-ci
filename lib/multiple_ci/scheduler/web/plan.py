@@ -17,7 +17,7 @@ class PlanListHandler(JsonBaseHandler):
                                size=config.API_SEARCH_SIZE,
                                query={ 'match_all': {} })['hits']['hits']
         plans = [x['_source'] for x in plans]
-        self.ok(payload=plans)
+        self.ok(payload=plans[::-1])
 
 class PlanHandler(JsonBaseHandler):
     def initialize(self, es):

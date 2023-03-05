@@ -14,7 +14,7 @@ class JobListHandler(JsonBaseHandler):
                               size=config.API_SEARCH_SIZE,
                               query={ 'match_all': {} })['hits']['hits']
         jobs = [x['_source'] for x in jobs]
-        self.ok(payload=jobs)
+        self.ok(payload=jobs[::-1])
 
 
 class JobHandler(JsonBaseHandler):
