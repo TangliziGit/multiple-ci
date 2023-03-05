@@ -42,3 +42,21 @@ setup() {
   echo "output: $output" >&3
   [[ "$result" == "success" ]]
 }
+
+@test "single sleep-aarch64 plan" {
+  mci-scanner --debug sleep-aarch64 2>/dev/null
+  run cat $fifo
+
+  result="$(echo "$output" | jq -r .type)"
+  echo "output: $output" >&3
+  [[ "$result" == "success" ]]
+}
+
+@test "single hello-world-aarch64 plan" {
+  mci-scanner --debug hello-world-aarch64 2>/dev/null
+  run cat $fifo
+
+  result="$(echo "$output" | jq -r .type)"
+  echo "output: $output" >&3
+  [[ "$result" == "success" ]]
+}
