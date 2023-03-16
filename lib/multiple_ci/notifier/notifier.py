@@ -16,7 +16,7 @@ class NotificationHandler:
         def handle(ch, method, properties, arg):
             """
             :param arg: the notification configuration, example {
-              "type": "success | failure",
+              "type": "success | failure | system",
               "plan": "d616a42d-11aa-4107-97da-c366d6da8174",
               "arguments": [ "<job-id>" ]
             }

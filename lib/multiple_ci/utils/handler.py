@@ -43,11 +43,11 @@ class BaseHandler(tornado.web.RequestHandler):
 
     def ok(self, payload=None, message=''):
         Response(http.HTTPStatus.OK, HttpStatus.success.name,
-                        payload=payload, message=message).finish(self)
+                 payload=payload, message=message).finish(self)
 
     def err(self, code, message, payload=None):
         Response(code, HttpStatus.failure.name,
-                        payload=payload, message=message).finish(self)
+                 payload=payload, message=message).finish(self)
 
     def write_error(self, status_code: int, **kwargs: Any) -> None:
         if "exc_info" in kwargs:

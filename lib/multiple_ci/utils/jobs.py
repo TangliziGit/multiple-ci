@@ -109,6 +109,7 @@ def generate_job(command, plan, stage_name, lkp_src):
     job['repository'] = plan['repository']
     job['PKGBUILD'] = plan['PKGBUILD']
 
+    job['MAC'] = job.get('MAC', 'none')
     job['result_service'] = 'raw_upload'
     job['RESULT_ROOT'] = '/result'
     job['LKP_SERVER'] = config.LKP_SERVER

@@ -3,7 +3,7 @@ import logging
 
 import elasticsearch
 
-from multiple_ci.scheduler.web.util import BaseHandler
+from multiple_ci.utils.handler import BaseHandler
 from multiple_ci.model.machine_state import MachineState
 from multiple_ci.model.job_state import JobState
 

@@ -5,12 +5,14 @@ import time
 import yaml
 import threading
 import queue
+from readerwriterlock import rwlock
 
 from multiple_ci.scanner.checker import CheckerSelector
+from multiple_ci.scanner.web import ScannerWeb
 from multiple_ci.utils.mq import MQPublisher
-from multiple_ci.model.job_config import PlanConfig
+from multiple_ci.model.plan_config import PlanConfig
 from multiple_ci.config import config
-from multiple_ci.utils import git
+from multiple_ci.utils import git, repo
 
 
 def get_commit_id(repo_name):
@@ -29,35 +31,47 @@ class RepoListenThread(threading.Thread):
 
 
 class ScanThread(threading.Thread):
-    def __init__(self, repo_queue, mq_host, meta_name):
+    def __init__(self, repo_queue, repo_set, mq_host, meta_name, repo_lock):
         threading.Thread.__init__(self)
         self.repo_queue = repo_queue
         self.mq = MQPublisher(mq_host, 'new-plan')
         self.checkers = CheckerSelector()
         self.meta_name = meta_name
+        self.repo_lock = repo_lock
+        self.repo_set = repo_set
+
+    def update_plan_config(self, old_config):
+        with self.repo_lock.gen_rlock():
+            directory = old_config['dir']
+            name = old_config['name']
+            new_config = repo.generate_plan_config(directory, name)
+        return new_config
 
     def run(self):
         while True:
             time.sleep(config.SCANNER_INTERVAL_SEC)
 
-            job_config = self.repo_queue.get(block=True)
-            checker = self.checkers.get_checker(job_config['checker'])
-            if checker.check(job_config):
+            old_config = self.repo_queue.get(block=True)
+            checker = self.checkers.get_checker(old_config['checker'])
+            if checker.check(old_config):
                 plan_config = {
                     "time": time.time_ns(),
-                    "name": job_config['name'],
+                    "name": old_config['name'],
                     "commit": {
                         "meta": get_commit_id(self.meta_name),
-                        "repo": get_commit_id(job_config['name'])
+                        "repo": get_commit_id(old_config['name'])
                     },
-                    "repository": job_config['url'],
-                    "PKGBUILD": job_config["PKGBUILD"]
+                    "repository": old_config['url'],
+                    "PKGBUILD": old_config["PKGBUILD"]
                 }
                 logging.info(f'send new plan: plan_config={plan_config}')
                 self.mq.publish_dict(plan_config)
 
-            job_config['time'] = time.time_ns()
-            self.repo_queue.put(job_config)
+            new_config = self.update_plan_config(old_config)
+            if new_config is not None:
+                self.repo_queue.put(new_config)
+            else:
+                self.repo_set.remove(old_config['name'])
 
 
 class Scanner:
@@ -67,7 +81,12 @@ class Scanner:
         self.repo_queue = queue.PriorityQueue(config.SCANNER_REPO_QUEUE_CAPACITY)
         self.listener = RepoListenThread(self.repo_queue)
         meta_repo_name = self.upstream_url.split('/')[-1]
-        self.scanners = [ScanThread(self.repo_queue, mq_host, meta_repo_name) for __ in range(scanner_count)]
+        self.repo_lock = rwlock.RWLockRead()
+        self.repo_set = set()
+        self.scanners = [ScanThread(self.repo_queue, self.repo_set, mq_host, meta_repo_name, self.repo_lock)
+                         for __ in range(scanner_count)]
+
+        self.web = ScannerWeb(mq_host, self.repo_set, self.repo_queue, self.repo_lock)
 
     def init(self):
         repo_name = self.upstream_url.split('/')[-1]
@@ -77,27 +96,10 @@ class Scanner:
         else:
             git.run(f"clone {self.upstream_url} {upstream_path}")
 
-        for directory, name in Scanner._repo_iter(upstream_path):
-            meta_path = os.path.join(directory, 'meta.yaml')
-            plan_path = os.path.join(directory, 'plan.yaml')
-            with open(meta_path) as meta_file:
-                meta = yaml.load(meta_file, Loader=yaml.FullLoader)
-                # TODO: validate meta.yaml
-                if 'repository' not in meta: continue
-                if not os.path.exists(plan_path): continue
-
-                with open(plan_path) as plan_file:
-                    plan_config = {
-                        'time': time.time_ns(),
-                        'url': meta['repository'],
-                        'dir': directory,
-                        'name': name,
-                        'checker': meta.get('checker', 'commit-count'),
-                        'defaults': yaml.load(plan_file, Loader=yaml.FullLoader),
-                        'PKGBUILD': meta.get('PKGBUILD', None)
-                    }
-                    logging.debug(f'put plan config into queue: config={plan_config}')
-                    self.repo_queue.put(PlanConfig(plan_config))
+        for directory, name in repo.iterator(upstream_path):
+            plan_config = repo.generate_plan_config(directory, name)
+            self.repo_set.add(name)
+            self.repo_queue.put(PlanConfig(plan_config))
 
     def scan(self):
         self.listener.start()
@@ -148,11 +150,3 @@ class Scanner:
             }
             logging.info(f'send new plan: plan_config={plan_config}')
             MQPublisher(self.mq_host, 'new-plan').publish_dict(plan_config)
-
-    @classmethod
-    def _repo_iter(cls, upstream_path):
-        for ch in map(chr, range(ord('a'), ord('z') + 1)):
-            path = os.path.join(upstream_path, ch)
-            for root, dirs, files in os.walk(path):
-                for d in dirs:
-                    yield os.path.join(root, d), d

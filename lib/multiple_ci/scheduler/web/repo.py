@@ -1,4 +1,4 @@
-from multiple_ci.scheduler.web.util import JsonBaseHandler
+from multiple_ci.utils.handler import JsonBaseHandler
 from multiple_ci.config import config
 
 class RepoListHandler(JsonBaseHandler):

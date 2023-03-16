@@ -10,12 +10,13 @@ from multiple_ci.model.machine_state import MachineState
 from multiple_ci.model.job_state import JobState
 
 class Monitor:
-    def __init__(self, es, mci_home):
+    def __init__(self, es, mci_home, notification_publisher):
         self.mac2timer = {}
         self.mac2socket = {}
         self.socket2mac = {}
         self.es = es
         self.mci_home = mci_home
+        self.notification_publisher = notification_publisher
 
     def init(self):
         machines = self.es.search(index='machine', query={'match_all': {}})['hits']['hits']
@@ -76,6 +77,7 @@ class Monitor:
     def down_callback(self, mac):
         def callback():
             logging.warning(f'test machine has been down: mac={mac}')
+            downtime_message = None
             while True:
                 try:
                     machine_resp = self.es.get(index='machine', id=mac)
@@ -95,6 +97,15 @@ class Monitor:
                         job = job_resp['_source']
                         job['state'] = JobState.waiting.name
                         job['machine'] = ""
+                        job['downtime'] = int(job['downtime']) + 1
+                        if job['downtime'] >= config.DOWNTIME_COUNT:
+                            downtime_message = {
+                                'plan': job['plan'],
+                                'type': 'system',
+                                'arguments': [
+                                    f'the downtime of the job {job["id"]} has reached the upper limit'
+                                ]
+                            }
                         shutil.rmtree(os.path.join(self.mci_home, 'job', job['id']))
                         self.es.index(index='job', id=job['id'], document=job,
                                       if_primary_term=job_resp['_primary_term'], if_seq_no=job_resp['_seq_no'])
@@ -104,6 +115,9 @@ class Monitor:
                     logging.debug(f'result dealt successfully')
                     logging.info(f'interrupted job has been restarted')
                     break
+
+            if downtime_message is not None:
+                self.notification_publisher.publish_dict(downtime_message)
         return callback
 
 
