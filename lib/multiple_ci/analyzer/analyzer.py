@@ -90,6 +90,7 @@ class AnalyzeHandler:
             self.es.index(index='plan', id=plan['id'], document=plan,
                           if_primary_term=result['_primary_term'], if_seq_no=result['_seq_no'])
             self.api.cancel_stage(plan['id'], stage['name'])
+            logging.warning("pubilsh dict")
             self.notification_publisher.publish_dict({
                 'type': 'failure',
                 'plan': plan['id'],
