@@ -367,6 +367,7 @@ install-depends() {
             -e ES_JAVA_OPTS="-Xms256m -Xmx256m" \
             -e "xpack.security.enabled=false" \
             -e "xpack.security.http.ssl.enabled=false" -d \
+            -v /srv/elasticsearch/data:/usr/share/elasticsearch/data \
             elasticsearch:8.5.3
 
         echo "sleep 10 seconds to wait es instance initializing"
@@ -458,7 +459,7 @@ EOF
 cat <<EOF | sudo tee ${MCI_HOME}/os/boot.ipxe > /dev/null
 #!ipxe
 cpuid --ext 29 && set buildarch x86_64 || echo "cpuid failed"
-chain http://172.20.0.1:3000/boot.ipxe?arch=\${arch}&mac=\${net0/mac} || sleep 10 && reboot
+chain http://172.20.0.1:3000/boot.ipxe?arch=\${buildarch}&mac=\${net0/mac} || sleep 10 && reboot
 EOF
 
 # job 1234, just for demo
