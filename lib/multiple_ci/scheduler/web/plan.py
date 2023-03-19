@@ -5,6 +5,7 @@ import elasticsearch
 from multiple_ci.config import config
 from multiple_ci.model.stage_state import StageState
 from multiple_ci.model.plan_stage import PlanState
+from multiple_ci.model.job_state import JobState
 from multiple_ci.scheduler.web.util import JsonBaseHandler
 
 
@@ -50,7 +51,6 @@ class CancelStageHandler(JsonBaseHandler):
         self.monitor = monitor
 
     def put(self, plan_id, stage_name):
-        need_reboot = False
         while True:
             try:
                 result = self.es.get(index='plan', id=plan_id)
@@ -59,15 +59,9 @@ class CancelStageHandler(JsonBaseHandler):
 
                 stage = next(stage for stage in stages if stage['name'] == stage_name)
                 match stage['state']:
-                    case StageState.waiting.name:
+                    case StageState.waiting.name | StageState.running.name:
                         stage['state'] = StageState.canceled.name
                         plan['state'] = PlanState.canceled.name
-                    case StageState.running.name:
-                        stage['state'] = StageState.canceled.name
-                        plan['state'] = PlanState.canceled.name
-                        need_reboot = True
-                    case StageState.failure.name:
-                        need_reboot = True
                     case _:
                         break
                 self.es.index(index='plan', id=plan_id, document=plan,
@@ -92,4 +86,13 @@ class CancelStageHandler(JsonBaseHandler):
                 # send reboot command with job_id
                 # test machine will check if it runs the job whose id equals job_id
                 self.monitor.send(f'reboot({machine["job"]})')
+
+        for job_id in stage['jobs']:
+            job = self.es.get(index='job', id=job_id)['_source']
+            match job['state']:
+                case JobState.waiting.name | JobState.running.name:
+                    job['state'] = JobState.canceled.name
+                    self.es.index(index='job', id=job['id'], document=job)
+                case _:
+                    pass
         self.ok()

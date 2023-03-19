@@ -52,6 +52,8 @@ class Scheduler:
             (f'/api/plan/{uuid}', plan.PlanHandler, dict(es=self.es)),
             (f'/api/plan/{uuid}/stage/{stage}/job',
                 plan.JobListByPlanStageHandler, dict(es=self.es, monitor=self.monitor)),
+            (f'/api/plan/{uuid}/stage/{stage}/actions/cancel',
+                plan.CancelStageHandler, dict(es=self.es, monitor=self.monitor)),
 
             (f'/job', job.JobListHandler, dict(es=self.es)),
             (f'/job/{uuid}', job.JobHandler, dict(es=self.es)),
