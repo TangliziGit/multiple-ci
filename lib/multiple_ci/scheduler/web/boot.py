@@ -1,5 +1,8 @@
 import logging
 
+import tornado.concurrent
+import tornado.gen
+import concurrent
 import elasticsearch
 
 from multiple_ci.utils import jobs
@@ -95,7 +98,10 @@ def generate_ipxe_script(arch, os, os_version, kernel, initramfs, arguments, ini
     scripts += 'boot'
     return scripts
 
+
 class BootHandler(BaseHandler):
+    executor = concurrent.futures.ThreadPoolExecutor(5)
+
     def initialize(self, lkp_src, mci_home, es, monitor, latch):
         self.es = es
         self.monitor = monitor
@@ -103,7 +109,13 @@ class BootHandler(BaseHandler):
         self.mci_home = mci_home
         self.latch = latch
 
+    @tornado.gen.coroutine
     def get(self):
+        script = yield self.gen_script()
+        self.finish(script)
+
+    @tornado.concurrent.run_on_executor
+    def gen_script(self):
         with self.latch:
             arch = self.get_argument('arch')
             mac = self.get_argument('mac')
@@ -130,14 +142,13 @@ class BootHandler(BaseHandler):
 
             if len(result['hits']['hits']) == 0:
                 logging.info(f'no job needs to be executed: mac={mac}, arch={arch}')
-                self.finish(f'#!ipxe\nsleep {config.HEARTBEAT_INTERVAL_SEC}\nreboot')
                 self.es.index(index='machine', id=mac, document={
                     'mac': mac,
                     'arch': arch,
                     'state': MachineState.idle.name,
                     'job': ''
                 })
-                return
+                return f'#!ipxe\nsleep {config.HEARTBEAT_INTERVAL_SEC}\nreboot'
 
             job = result['hits']['hits'][0]['_source']
 
@@ -146,14 +157,13 @@ class BootHandler(BaseHandler):
             if not job_created:
                 # assert: job.state == running | done
                 logging.info(f'data race occurred, need retry: mac={mac}, arch={arch}, job_id={job["id"]}')
-                self.finish(f'#!ipxe\nreboot')
                 self.es.index(index='machine', id=mac, document={
                     'mac': mac,
                     'arch': arch,
                     'state': MachineState.idle.name,
                     'job': ''
                 })
-                return
+                return f'#!ipxe\nreboot'
 
             # generate ipxe script
             plan = self.es.get(index='plan', id=job['plan'])['_source']
@@ -167,7 +177,7 @@ class BootHandler(BaseHandler):
             initramfs_path = None
             if configure['kernel'] != '':
                 kernel = f"http://172.20.0.1:3080/{configure['kernel']}"
-                if configure['initramfs'] == '':
+                if configure['initramfs'] == '' and arch == 'x86_64':
                     kernel_path = f'/srv/result/{configure["kernel"]}'
                     initramfs = jobs.generate_lkp_initramfs(kernel_path, self.lkp_src)
                     initramfs = initramfs.replace('/srv/result/', '')
@@ -177,7 +187,7 @@ class BootHandler(BaseHandler):
 
             script = generate_ipxe_script(job['os_arch'], job['os'], job['os_version'], kernel, initramfs, arguments, initrd)
             logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
-            self.finish(script)
+            # self.finish(script)
 
             # update job and test machine state after successful request
             job['state'] = JobState.running.name
@@ -207,3 +217,4 @@ class BootHandler(BaseHandler):
                 else:
                     logging.debug(f'result dealt successfully')
                     break
+            return script
