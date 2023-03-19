@@ -100,7 +100,7 @@ def generate_ipxe_script(arch, os, os_version, kernel, initramfs, arguments, ini
 
 
 class BootHandler(BaseHandler):
-    executor = concurrent.futures.ThreadPoolExecutor(5)
+    executor = concurrent.futures.ThreadPoolExecutor(4)
 
     def initialize(self, lkp_src, mci_home, es, monitor, latch):
         self.es = es
@@ -111,6 +111,8 @@ class BootHandler(BaseHandler):
 
     @tornado.gen.coroutine
     def get(self):
+        mac = self.get_argument('mac')
+        self.monitor.pong(mac=mac)
         script = yield self.gen_script()
         self.finish(script)
 
@@ -119,7 +121,6 @@ class BootHandler(BaseHandler):
         with self.latch:
             arch = self.get_argument('arch')
             mac = self.get_argument('mac')
-            self.monitor.pong(mac=mac)
 
             logging.info(f"testbox request job: arch={arch}, mac={mac}")
             if arch == 'arm64':

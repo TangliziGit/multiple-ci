@@ -73,7 +73,8 @@ class Scheduler:
             (f'/~lkp/cgi-bin/lkp-plan-kernel', lkp.PlanKernelHandler, dict(es=self.es)),
             (f'/~lkp/cgi-bin/lkp-plan-append-packages', lkp.PlanPackagesHandler, dict(es=self.es)),
 
-            ('/actions', monitor.MonitorActionsHandler, dict(monitor=self.monitor))
+            (f'/actions', monitor.MonitorActionsHandler, dict(monitor=self.monitor)),
+            (f'/machine/{mac}/ping', monitor.MonitorPingHandler, dict(monitor=self.monitor))
         ], websocket_ping_interval=config.HEARTBEAT_INTERVAL_SEC)
 
         app.listen(self.port)

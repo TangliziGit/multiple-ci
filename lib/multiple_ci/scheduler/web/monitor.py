@@ -1,6 +1,7 @@
 import logging
 
 import tornado.websocket
+from multiple_ci.scheduler.web.util import JsonBaseHandler
 
 class MonitorActionsHandler(tornado.websocket.WebSocketHandler):
     def data_received(self, chunk): pass
@@ -31,3 +32,13 @@ class MonitorActionsHandler(tornado.websocket.WebSocketHandler):
     def on_pong(self, data: bytes):
         logging.debug(f'heartbeat pong: mac={self.monitor.socket2mac.get(self, None)}')
         self.monitor.pong(self)
+
+
+class MonitorPingHandler(JsonBaseHandler):
+    def initialize(self, monitor):
+        self.monitor = monitor
+
+    def get(self, mac):
+        logging.info(f"monitor ping: mac={mac}")
+        self.monitor.pong(mac=mac)
+        self.ok()
