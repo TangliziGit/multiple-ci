@@ -1,7 +1,7 @@
 import logging
 
 import tornado.websocket
-from multiple_ci.scheduler.web.util import JsonBaseHandler
+from multiple_ci.utils.handler import JsonBaseHandler
 
 class MonitorActionsHandler(tornado.websocket.WebSocketHandler):
     def data_received(self, chunk): pass

@@ -1,6 +1,7 @@
 import tornado.web
 import tornado.ioloop
 import tornado.escape
+import logging
 
 from multiple_ci.model.plan_config import PlanConfig
 from multiple_ci.utils.handler import JsonBaseHandler
@@ -13,18 +14,22 @@ class WebhookHandler(JsonBaseHandler):
         self.repo_queue = repo_queue
         self.repo_lock = repo_lock
         self.upstream_path = upstream_path
+        self.meta_name = self.upstream_path.split('/')[-1]
 
-    def get(self):
+    def post(self):
         event_type = self.request.headers["X-GitHub-Event"]
+        payload = tornado.escape.json_decode(self.request.body)
+
+        logging.info(f'webhook triggered: event_type={event_type}, payload={payload}')
         if event_type != 'pull_request':
             self.ok()
             return
 
-        payload = tornado.escape.json_decode(self.request.body)
-        if payload['action'] != 'closed' or payload['merged'] == False:
+        if payload['action'] != 'closed' or payload['pull_request']['merged'] == False:
             self.ok()
             return
 
+        git.run('pull --rebase', repo_path=self.upstream_path)
         with self.repo_lock.gen_wlock():
             with git.RepoSpinlock(self.upstream_path):
                 for directory, name in repo.iterator(self.upstream_path):
@@ -56,7 +61,7 @@ class ScannerWeb:
         self.repo_lock = repo_lock
         self.upstream_path = upstream_path
 
-        app = tornado.web.Application([
+        self.app = tornado.web.Application([
             (f'/webhook', WebhookHandler, dict(repo_set=self.repo_set,
                                                repo_queue=self.repo_queue,
                                                repo_lock=self.repo_lock,
@@ -66,5 +71,6 @@ class ScannerWeb:
         ])
 
         # TODO: default port
-        app.listen(8081)
+    def run(self):
+        self.app.listen(8081)
         tornado.ioloop.IOLoop.instance().start()

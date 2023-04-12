@@ -6,6 +6,7 @@ import tornado.web
 
 from multiple_ci.scheduler.web import job, machine, boot, lkp, plan, monitor, repo
 from multiple_ci.scheduler.mq import new_plan, next_stage
+from multiple_ci.utils import caches
 from multiple_ci.utils.mq import MQConsumer, MQPublisher
 from multiple_ci.scheduler.monitor import Monitor
 from multiple_ci.config import config
@@ -30,6 +31,7 @@ class Scheduler:
                                                   args=[mq_host, self.es, self.notification_publisher, self.lkp_src])
         self.monitor = Monitor(self.es, mci_home, self.notification_publisher)
         self.boot_latch = threading.Lock()
+        self.cache = caches.CacheManager.get_client()
 
     def run(self):
         self.new_plan_thread.start()
@@ -60,7 +62,7 @@ class Scheduler:
             (f'/api/job', job.JobListHandler, dict(es=self.es)),
             (f'/api/job/{uuid}', job.JobHandler, dict(es=self.es)),
 
-            (f'/api/repo', repo.RepoListHandler, dict(es=self.es)),
+            (f'/api/repo', repo.RepoListHandler, dict(es=self.es, cache=self.cache)),
             (f'/api/repo/{repo_name}', repo.RepoHandler, dict(es=self.es)),
             (f'/api/repo/{repo_name}/plan', repo.PlanListByRepoHandler, dict(es=self.es)),
 

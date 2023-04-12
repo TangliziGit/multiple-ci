@@ -2,8 +2,9 @@ from multiple_ci.utils.handler import JsonBaseHandler
 from multiple_ci.config import config
 
 class RepoListHandler(JsonBaseHandler):
-    def initialize(self, es):
+    def initialize(self, es, cache):
         self.es = es
+        self.cache = cache
 
     def get(self):
         # Fuck ES DSL, and praise chatGPT
@@ -43,17 +44,31 @@ class RepoListHandler(JsonBaseHandler):
 
         plan_buckets = plan_resp['aggregations']['group_by_name']['buckets']
         repos = []
+        repo_set = set()
         for bucket in plan_buckets:
             name = bucket['key']
             count = bucket['doc_count']
             success_count = bucket['filter_success']['doc_count']
             avg_duration = bucket['filter_success']['avg_duration']['value'] if success_count > 0 else 0
+            repo_set.add(name)
             repos.append({
                 'name': name,
                 'job_count': job_count_dict[name],
                 'plan_count': count,
                 'success_rate': success_count / count,
                 'avg_duration': avg_duration,
+            })
+
+        repo_in_cache = self.cache.keys('*')
+        for r in repo_in_cache:
+            r = r.decode('utf-8')
+            if r in repo_set: continue
+            repos.append({
+                'name': r,
+                'job_count': 0,
+                'plan_count': 0,
+                'success_rate': 0,
+                'avg_duration': 0,
             })
         self.ok(payload=repos)
 

@@ -61,8 +61,7 @@ class ScanThread(threading.Thread):
                         "meta": get_commit_id(self.meta_name),
                         "repo": get_commit_id(old_config['name'])
                     },
-                    "repository": old_config['url'],
-                    "PKGBUILD": old_config["PKGBUILD"]
+                    "meta": old_config['meta']
                 }
                 logging.info(f'send new plan: plan_config={plan_config}')
                 self.mq.publish_dict(plan_config)
@@ -80,13 +79,16 @@ class Scanner:
         self.upstream_url = upstream_url
         self.repo_queue = queue.PriorityQueue(config.SCANNER_REPO_QUEUE_CAPACITY)
         self.listener = RepoListenThread(self.repo_queue)
-        meta_repo_name = self.upstream_url.split('/')[-1]
+        self.meta_repo_name = self.upstream_url.split('/')[-1]
         self.repo_lock = rwlock.RWLockRead()
         self.repo_set = set()
-        self.scanners = [ScanThread(self.repo_queue, self.repo_set, mq_host, meta_repo_name, self.repo_lock)
+        self.scanners = [ScanThread(self.repo_queue, self.repo_set, mq_host, self.meta_repo_name, self.repo_lock)
                          for __ in range(scanner_count)]
 
-        self.web = ScannerWeb(mq_host, self.repo_set, self.repo_queue, self.repo_lock)
+        repo_name = self.upstream_url.split('/')[-1]
+        upstream_path = os.path.join("/srv/git", repo_name)
+
+        self.web = ScannerWeb(mq_host, upstream_path, self.repo_set, self.repo_queue, self.repo_lock)
 
     def init(self):
         repo_name = self.upstream_url.split('/')[-1]
@@ -105,6 +107,7 @@ class Scanner:
         self.listener.start()
         for scanner in self.scanners:
             scanner.start()
+        self.web.run()
 
     def send(self, repo, notify):
         """

@@ -1,7 +1,7 @@
 # -------------------- critical config --------------------
 SCANNER_REPO_QUEUE_CAPACITY = 10000
 SCANNER_COUNT = 2
-SCANNER_INTERVAL_SEC = 5
+SCANNER_INTERVAL_SEC = 1
 
 CHECKER_TIMEOUT_NS = 60 * 60 * 10**9    # 60 minutes
 CHECKER_COMMIT_COUNT_THRESHOLD = 5
