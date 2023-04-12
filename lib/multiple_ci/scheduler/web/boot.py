@@ -10,7 +10,7 @@ from multiple_ci.config import config
 from multiple_ci.model.job_state import JobState
 from multiple_ci.model.stage_state import StageState
 from multiple_ci.model.machine_state import MachineState
-from multiple_ci.scheduler.web.util import BaseHandler
+from multiple_ci.utils.handler import BaseHandler
 
 ipxe_scripts = {
     'x86_64': {
@@ -136,6 +136,10 @@ class BootHandler(BaseHandler):
                         'must': [
                             { 'match': { 'os_arch': arch } },
                             { 'match': { 'state': JobState.waiting.name}},
+                        ],
+                        'should': [
+                            { 'term': { 'MAC': 'none' }},
+                            { 'term': { 'MAC': mac }},
                         ]
                     },
                 },

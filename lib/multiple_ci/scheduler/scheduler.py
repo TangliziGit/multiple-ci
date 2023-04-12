@@ -28,7 +28,7 @@ class Scheduler:
                                                 args=[mq_host, self.es, self.lkp_src, upstream_name])
         self.next_stage_thread = threading.Thread(target=_handle_next_stage,
                                                   args=[mq_host, self.es, self.notification_publisher, self.lkp_src])
-        self.monitor = Monitor(self.es, mci_home)
+        self.monitor = Monitor(self.es, mci_home, self.notification_publisher)
         self.boot_latch = threading.Lock()
 
     def run(self):

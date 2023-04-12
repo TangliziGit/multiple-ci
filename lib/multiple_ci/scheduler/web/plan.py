@@ -6,7 +6,7 @@ from multiple_ci.config import config
 from multiple_ci.model.stage_state import StageState
 from multiple_ci.model.plan_stage import PlanState
 from multiple_ci.model.job_state import JobState
-from multiple_ci.scheduler.web.util import JsonBaseHandler
+from multiple_ci.utils.handler import JsonBaseHandler
 
 
 class PlanListHandler(JsonBaseHandler):

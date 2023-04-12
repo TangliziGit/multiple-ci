@@ -2,7 +2,7 @@ import http
 import json
 
 from multiple_ci.config import config
-from multiple_ci.scheduler.web.util import JsonBaseHandler
+from multiple_ci.utils.handler import JsonBaseHandler
 
 
 class MachineListHandler(JsonBaseHandler):
