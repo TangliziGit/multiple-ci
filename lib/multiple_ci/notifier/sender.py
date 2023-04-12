@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from email.header import Header
 
 from multiple_ci.config import config
+from multiple_ci.notifier.template import EMAIL_TEMPLATE
 
 class EmailSender:
     def __init__(self):
@@ -14,11 +15,12 @@ class EmailSender:
     def send(self, target, argument):
         receivers = [target]
         content = yaml.dump(argument)
+        content = EMAIL_TEMPLATE.format(planID=argument['plan'], content=content)
 
-        message = MIMEText(content, 'plain', 'utf-8')
+        message = MIMEText(content, 'text/html', 'utf-8')
         message['From'] = Header("multiple-ci", 'utf-8')
         message['To'] = Header("multiple-ci maintainer group", 'utf-8')
-        message['Subject'] = Header(f'[multiple-ci] job result', 'utf-8')
+        message['Subject'] = Header(f'[multiple-ci] plan report on {argument["plan"]}', 'utf-8')
 
         smtpObj = smtplib.SMTP()
         smtpObj.connect(config.EMAIL_HOST, 25)

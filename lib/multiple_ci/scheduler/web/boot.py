@@ -100,7 +100,7 @@ def generate_ipxe_script(arch, os, os_version, kernel, initramfs, arguments, ini
 
 
 class BootHandler(BaseHandler):
-    executor = concurrent.futures.ThreadPoolExecutor(4)
+    executor = concurrent.futures.ThreadPoolExecutor(16)
 
     def initialize(self, lkp_src, mci_home, es, monitor, latch):
         self.es = es
@@ -114,20 +114,20 @@ class BootHandler(BaseHandler):
         mac = self.get_argument('mac')
         self.monitor.pong(mac=mac)
         script = yield self.gen_script()
+        self.monitor.pong(mac=mac)
         self.finish(script)
 
     @tornado.concurrent.run_on_executor
     def gen_script(self):
+        arch = self.get_argument('arch')
+        mac = self.get_argument('mac')
+
+        logging.info(f"testbox request job: arch={arch}, mac={mac}")
+        if arch == 'arm64':
+            arch = 'aarch64'
+
         with self.latch:
-            arch = self.get_argument('arch')
-            mac = self.get_argument('mac')
-
-            logging.info(f"testbox request job: arch={arch}, mac={mac}")
-            if arch == 'arm64':
-                arch = 'aarch64'
-
             # get job id from arch queue
-            # FIXME: get job randomly to avoid data race
             result = self.es.search(index='job', body={
                 'size': 1,
                 'sort': { 'priority': { 'order': 'desc' } },
@@ -152,70 +152,76 @@ class BootHandler(BaseHandler):
                 return f'#!ipxe\nsleep {config.HEARTBEAT_INTERVAL_SEC}\nreboot'
 
             job = result['hits']['hits'][0]['_source']
-
-            # generate job.cgz and store it into TFTP
-            job_created = jobs.create_job_package(job, self.mci_home, self.lkp_src)
-            if not job_created:
-                # assert: job.state == running | done
-                logging.info(f'data race occurred, need retry: mac={mac}, arch={arch}, job_id={job["id"]}')
-                self.es.index(index='machine', id=mac, document={
-                    'mac': mac,
-                    'arch': arch,
-                    'state': MachineState.idle.name,
-                    'job': ''
-                })
-                return f'#!ipxe\nreboot'
-
-            # generate ipxe script
-            plan = self.es.get(index='plan', id=job['plan'])['_source']
-            configure = plan['config']
-            packages = [f'http://172.20.0.1:3080/{p}' for p in configure['packages']]
-
-            arguments = [ f'packages={",".join(packages)}' ]
-            initrd = [ f'tftp://172.20.0.1/job/{job["id"]}/job.cgz' ]
-
-            initramfs, kernel = None, None
-            initramfs_path = None
-            if configure['kernel'] != '':
-                kernel = f"http://172.20.0.1:3080/{configure['kernel']}"
-                if configure['initramfs'] == '' and arch == 'x86_64':
-                    kernel_path = f'/srv/result/{configure["kernel"]}'
-                    initramfs = jobs.generate_lkp_initramfs(kernel_path, self.lkp_src)
-                    initramfs = initramfs.replace('/srv/result/', '')
-                    initramfs_path = initramfs
-                    configure['initramfs'] = initramfs
-                initramfs = f"http://172.20.0.1:3080/{configure['initramfs']}"
-
-            script = generate_ipxe_script(job['os_arch'], job['os'], job['os_version'], kernel, initramfs, arguments, initrd)
-            logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
-            # self.finish(script)
-
-            # update job and test machine state after successful request
             job['state'] = JobState.running.name
-            job['machine'] = mac
+            self.es.index(index='job', id=job['id'], document=job)
+
+        # generate job.cgz and store it into TFTP
+        job_created = jobs.create_job_package(job, self.mci_home, self.lkp_src)
+        if not job_created:
+            # assert: job.state == running | done
+            logging.info(f'data race occurred, need retry: mac={mac}, arch={arch}, job_id={job["id"]}')
+            job['state'] = JobState.waiting.name
             self.es.index(index='job', id=job['id'], document=job)
             self.es.index(index='machine', id=mac, document={
                 'mac': mac,
                 'arch': arch,
-                'state': MachineState.busy.name,
-                'job': job['id']
+                'state': MachineState.idle.name,
+                'job': ''
             })
+            return f'#!ipxe\nreboot'
 
-            while True:
-                result = self.es.get(index='plan', id=job['plan'])
-                plan = result['_source']
-                stage_idx = next(idx for idx, stage in enumerate(plan['stages']) \
-                                 if stage['name'] == job['stage'])
-                stage = plan['stages'][stage_idx]
+        # generate ipxe script
+        plan = self.es.get(index='plan', id=job['plan'])['_source']
+        if plan['config'] is None or len(plan['config']) == 0:
+            plan['config'] = {'packages': [], 'kernel': '', 'initramfs': ''}
+        configure = plan['config']
+        packages = [f'http://172.20.0.1:3080/{p}' for p in configure['packages']]
 
-                if initramfs_path is not None:
-                    plan['config']['initramfs'] = initramfs_path
-                stage['state'] = StageState.running.name
-                try:
-                    self.es.index(index='plan', id=plan['id'], document=plan)
-                except elasticsearch.ConflictError as err:
-                    logging.warning(f'retry to handle result since concurrency control failed: err={err}')
-                else:
-                    logging.debug(f'result dealt successfully')
-                    break
-            return script
+        arguments = [ f'packages={",".join(packages)}' ]
+        initrd = [ f'tftp://172.20.0.1/job/{job["id"]}/job.cgz' ]
+
+        initramfs, kernel = None, None
+        initramfs_path = None
+        if configure['kernel'] != '':
+            kernel = f"http://172.20.0.1:3080/{configure['kernel']}"
+            if configure['initramfs'] == '' and arch == 'x86_64':
+                kernel_path = f'/srv/result/{configure["kernel"]}'
+                initramfs = jobs.generate_lkp_initramfs(kernel_path, self.lkp_src)
+                initramfs = initramfs.replace('/srv/result/', '')
+                initramfs_path = initramfs
+                configure['initramfs'] = initramfs
+            initramfs = f"http://172.20.0.1:3080/{configure['initramfs']}"
+
+        script = generate_ipxe_script(job['os_arch'], job['os'], job['os_version'], kernel, initramfs, arguments, initrd)
+        logging.info(f'send boot.ipxe script: job_id={job["id"]}, mac={mac}, script={script}')
+        # self.finish(script)
+
+        # update job and test machine state after successful request
+        job['state'] = JobState.running.name
+        job['machine'] = mac
+        self.es.index(index='job', id=job['id'], document=job)
+        self.es.index(index='machine', id=mac, document={
+            'mac': mac,
+            'arch': arch,
+            'state': MachineState.busy.name,
+            'job': job['id']
+        })
+
+        while True:
+            result = self.es.get(index='plan', id=job['plan'])
+            plan = result['_source']
+            stage_idx = next(idx for idx, stage in enumerate(plan['stages']) \
+                             if stage['name'] == job['stage'])
+            stage = plan['stages'][stage_idx]
+
+            if initramfs_path is not None:
+                plan['config']['initramfs'] = initramfs_path
+            stage['state'] = StageState.running.name
+            try:
+                self.es.index(index='plan', id=plan['id'], document=plan)
+            except elasticsearch.ConflictError as err:
+                logging.warning(f'retry to handle result since concurrency control failed: err={err}')
+            else:
+                logging.debug(f'result dealt successfully')
+                break
+        return script

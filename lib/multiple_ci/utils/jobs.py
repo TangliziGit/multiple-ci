@@ -4,6 +4,7 @@ import logging
 import os.path
 import subprocess
 import pathlib
+import shutil
 
 import yaml
 
@@ -52,6 +53,7 @@ def create_job_package(job, mci_home, lkp_src):
     """
     directory = os.path.join(mci_home, 'job', job['id'])
     if os.path.exists(directory):
+        shutil.rmtree(directory)
         return False
     os.mkdir(directory)
     job_yaml = os.path.join(directory, 'job.yaml')
