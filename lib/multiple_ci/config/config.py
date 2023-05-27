@@ -20,7 +20,7 @@ GIT_TXN_SPINLOCK_INTERVAL_SEC = 20 / 1000   # 20 ms
 
 EMAIL_HOST = "smtp.qq.com"
 EMAIL_USERNAME = "tanglizimail"
-EMAIL_PASSWORD = "qqmwqkjewqiebfgc"
+EMAIL_PASSWORD = "abhgvvhfiqgfbcjd"
 EMAIL_SENDER = 'tanglizimail@foxmail.com'
 
 # -------------------- default CLI config --------------------
@@ -29,7 +29,7 @@ DEFAULT_MULTIPLE_CI_HOME = '/srv/mci'
 DEFAULT_LKP_SRC = '/srv/lkp'
 
 DEFAULT_REDIS_HOST = 'localhost'
-DEFAULT_REDIS_PORT = 6379
+DEFAULT_REDIS_PORT = 6380
 DEFAULT_REDIS_DB = 0
 
 DEFAULT_MQ_HOST = 'localhost'

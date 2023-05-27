@@ -28,8 +28,9 @@ class PostRunHandler(BaseHandler):
         })['hits']['hits']
 
         if len(result) == 0:
-            self.err(http.HTTPStatus.NOT_FOUND, f'no such machine: job={job_id}')
-            return
+            logging.warning(f"no such machine: job={job_id}, state={MachineState.busy.name}")
+            # self.err(http.HTTPStatus.NOT_FOUND, f'no such machine: job={job_id}')
+            # return
         if len(result) > 1:
             logging.warning(f"machine job relation consistency check failed: machines={result}")
             self.err(http.HTTPStatus.INTERNAL_SERVER_ERROR,

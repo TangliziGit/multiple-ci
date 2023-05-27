@@ -345,7 +345,7 @@ install-venv() {
 install-depends() {
     docker ps -a --format "{{.Names}}" | grep -q ^redis$ || {
         docker run --name redis \
-           -p 6379:6379 -d \
+           -p 6380:6379 -d \
            redis
     }
 
@@ -533,7 +533,7 @@ install() {
 
 # ====================== clean ======================
 clean-redis() {
-  echo "flushall sync" | redis-cli > /dev/null
+  echo "flushall sync" | redis-cli -p 6380 > /dev/null
 }
 
 clean-es() {

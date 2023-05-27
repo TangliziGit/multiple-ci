@@ -64,7 +64,16 @@ def create_job_package(job, mci_home, lkp_src):
     cmd = f'{script_path} {job_yaml}'
     env = os.environ.copy()
     env['LKP_SRC'] = lkp_src
-    subprocess.run(cmd.split(" "), env=env)
+
+    result = subprocess.run(cmd.split(" "), env=env, capture_output=True)
+    code = result.returncode
+    out = result.stdout.decode()
+    err = result.stderr.decode()
+
+    logging.info(f"create_job_package stdout: return_code={code}, out={out}, err={err}")
+    if code != 0:
+        shutil.rmtree(directory)
+        return False
     return True
 
 def get_result_stats(job_id, lkp_src):

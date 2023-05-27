@@ -15,10 +15,10 @@ class EmailSender:
     def send(self, target, argument):
         receivers = [target]
         content = yaml.dump(argument)
-        content = EMAIL_TEMPLATE.format(planID=argument['plan'], content=content)
+        content = EMAIL_TEMPLATE.format(planID=argument['plan'], content=content.replace('\n', '<br/>'))
 
-        message = MIMEText(content, 'text/html', 'utf-8')
-        message['From'] = Header("multiple-ci", 'utf-8')
+        message = MIMEText(content, 'html', 'utf-8')
+        message['From'] = Header('multiple-ci <tanglizimail@foxmail.com>') # Header("multiple-ci", 'utf-8')
         message['To'] = Header("multiple-ci maintainer group", 'utf-8')
         message['Subject'] = Header(f'[multiple-ci] plan report on {argument["plan"]}', 'utf-8')
 
