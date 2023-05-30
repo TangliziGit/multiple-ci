@@ -79,5 +79,6 @@ class Scheduler:
             (f'/machine/{mac}/ping', monitor.MonitorPingHandler, dict(monitor=self.monitor))
         ], websocket_ping_interval=config.HEARTBEAT_INTERVAL_SEC)
 
-        app.listen(self.port)
+        server = tornado.httpserver.HTTPServer(app, no_keep_alive=True)
+        server.listen(self.port)
         tornado.ioloop.IOLoop.instance().start()
