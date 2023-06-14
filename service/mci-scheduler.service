@@ -1,0 +1,12 @@
+[Unit]
+Description=Multiple CI - Scheduler
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/bash -c "source /root/multiple-ci/venv/bin/activate && mci-scheduler"
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
